@@ -1,0 +1,65 @@
+name:                w40k
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/xcv-/w40k#readme
+license:             BSD3
+license-file:        LICENSE
+author:              xcv-
+maintainer:          example@example.com
+copyright:           2017 xcv-
+category:            Game
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     W40K.Core.Prob,
+                       W40K.Core.Chart,
+                       W40K.Core.Mechanics,
+                       W40K.Core.Mechanics.Common,
+                       W40K.Core.Mechanics.Melee,
+                       W40K.Core.Mechanics.Ranged,
+                       W40K.Core.Psychic,
+                       W40K.Data.Assassins,
+                       W40K.Data.Common,
+                       W40K.Data.Chaos,
+                       W40K.Data.GreyKnights,
+                       W40K.Data.Eldar,
+                       W40K.Data.Marines,
+                       W40K.Data.Necrons,
+                       W40K.Data.Tau,
+                       W40K.Data.Tyranids
+  build-depends:       base >= 4.7 && < 5,
+                       deepseq, parallel,
+                       vector, vector-algorithms,
+                       MemoTrie,
+                       math-functions,
+                       transformers, mtl, lens,
+                       diagrams-lib, diagrams-svg, Chart, Chart-diagrams
+  default-language:    Haskell2010
+  ghc-options:         -O3
+
+executable w40k
+  hs-source-dirs:      cli
+  main-is:             Main.hs
+  other-modules:       GreyKnightTests
+  ghc-options:         -O3 -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , w40k
+                     , lens
+  default-language:    Haskell2010
+
+-- test-suite w40k-test
+--   type:                exitcode-stdio-1.0
+--   hs-source-dirs:      test
+--   main-is:             Spec.hs
+--   build-depends:       base
+--                      , w40k
+--   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+--   default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/xcv-/w40k
