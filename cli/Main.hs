@@ -11,6 +11,7 @@ import W40K.Core.Psychic
 
 import W40K.Data.Common
 import qualified W40K.Data.Assassins   as Assassins
+import qualified W40K.Data.Chaos       as Chaos
 import qualified W40K.Data.Eldar       as Eldar
 import qualified W40K.Data.GreyKnights as GK
 import qualified W40K.Data.Marines     as Marines
@@ -280,7 +281,7 @@ main = do
 
     -- putStrLn "\n++ vs Knight paladin"
 
-    -- let dup a = a ++ a
+    let dup a = a ++ a
 
     -- putStrLn "\n+ Land raider (far)"
     -- analyzeInt $ numWounds Ranged (within draigoAura $
@@ -307,26 +308,55 @@ main = do
     --              , (ByTarget, ("slain models", numSlainModelsInt), largePagkRngInfTest,   [meq, Marines.primaris, Marines.gravis])
     --              ]
 
-    let hardToHit = model_mods.mod_tobehit -~ 1
+    -- print $ probKill Ranged (dup $ concat $ replicate 3 $ map (em_model.model_ld .~ 7) $ Marines.sniperSquad 5) 1 Chaos.daemonPrince
 
-    let rerolling1's = em_model.model_mods.mod_rrtohit <>~ RerollOnes
+    -- print $ probKill Ranged (dup $ [Marines.telion]
+    --                           ++ with Marines.telionAbility (Marines.sniperSquad 5)
+    --                           ++ concat (replicate 2 (Marines.sniperSquad 5))) 1 Chaos.daemonPrince
 
-    let cacahuete = basicEquippedModel Eldar.wraithguard & em_rw .~ Eldar.wraithcannon
-
-    print $ probKill Ranged (replicate 5 (rerolling1's cacahuete)) 3 (hardToHit Tyranids.hiveGuard)
-
-    mainWithPlot
-        [ ("wraithguard",
-            [ ("vs hard to hit hive guard", numSlainModels Ranged (replicate 5 cacahuete) (hardToHit Tyranids.hiveGuard))
-            , ("vs hive guard",             numSlainModels Ranged (replicate 5 cacahuete) Tyranids.hiveGuard)
-            ]
-          )
-        , ("wraithguard (rerolling 1's)",
-            [ ("vs hard to hit hive guard", numSlainModels Ranged (replicate 5 (rerolling1's cacahuete)) (hardToHit Tyranids.hiveGuard))
-            , ("vs hive guard",             numSlainModels Ranged (replicate 5 (rerolling1's cacahuete)) Tyranids.hiveGuard)
-            ]
-          )
+    mainAnalysis
+        [ AnalysisConfig ByTarget ProbKillOne
+             (setCombatType Ranged
+                 [ ("vindicare assassin", [Assassins.vindicare])
+                 , ("vindicare, telion and 1 sniper squad",
+                      [Assassins.vindicare]
+                        ++ [Marines.telion]
+                        ++ with Marines.telionAbility (Marines.sniperSquad 5))
+                 , ("3 sniper squads", map (em_model.model_att .~ 1) $ map (em_model.model_name .~ "scout") $ map (em_model.model_ld .~ 8) $ concat $ replicate 3 $ Marines.sniperSquad 5)
+                 , ("100 snipers",     map (em_model.model_att .~ 1) $ map (em_model.model_name .~ "scout") $ map (em_model.model_ld .~ 8) $ Marines.sniperSquad 100)
+                 , ("3 sniper squads with telion",
+                     [Marines.telion]
+                       ++ with Marines.telionAbility (Marines.sniperSquad 5)
+                       ++ concat (replicate 2 (Marines.sniperSquad 5)))
+                 ])
+             [ Marines.guilliman
+             , Chaos.daemonPrince
+             , GK.voldus^.em_model
+             -- , Eldar.warlock
+             , Eldar.farseer
+             ]
         ]
+
+    --let hardToHit = model_mods.mod_tobehit -~ 1
+
+    --let rerolling1's = em_model.model_mods.mod_rrtohit <>~ RerollOnes
+
+    --let cacahuete = basicEquippedModel Eldar.wraithguard & em_rw .~ Eldar.wraithcannon
+
+    --print $ probKill Ranged (replicate 5 (rerolling1's cacahuete)) 3 (hardToHit Tyranids.hiveGuard)
+
+    --mainWithPlot
+    --    [ ("wraithguard",
+    --        [ ("vs hard to hit hive guard", numSlainModels Ranged (replicate 5 cacahuete) (hardToHit Tyranids.hiveGuard))
+    --        , ("vs hive guard",             numSlainModels Ranged (replicate 5 cacahuete) Tyranids.hiveGuard)
+    --        ]
+    --      )
+    --    , ("wraithguard (rerolling 1's)",
+    --        [ ("vs hard to hit hive guard", numSlainModels Ranged (replicate 5 (rerolling1's cacahuete)) (hardToHit Tyranids.hiveGuard))
+    --        , ("vs hive guard",             numSlainModels Ranged (replicate 5 (rerolling1's cacahuete)) Tyranids.hiveGuard)
+    --        ]
+    --      )
+    --    ]
 
     -- mainWithPlot
     --     [("vindicare",

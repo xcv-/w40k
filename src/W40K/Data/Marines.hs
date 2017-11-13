@@ -19,11 +19,25 @@ guillimanAura :: Aura
 guillimanAura = noAura & aura_any.mod_rrtohit   .~ RerollFailed
                        & aura_any.mod_rrtowound .~ RerollFailed
 
+telionAbility :: EquippedModel -> EquippedModel
+telionAbility = applyAura $ noAura & aura_any.mod_tohit .~ 1
 
 -- MODELS
 
+scout :: Model
+scout = meq
+  & model_save .~ 4
+  & model_name .~ "scout"
+
+scoutSargeant :: Model
+scoutSargeant = scout
+  & model_att  .~ 2
+  & model_ld   .~ 8
+  & model_name .~ "scout sargeant"
+
 guilliman :: Model
 guilliman = meq
+  & model_class .~ Monster
   & model_ws    .~ 2
   & model_bs    .~ 2
   & model_str   .~ 6
@@ -33,6 +47,7 @@ guilliman = meq
   & model_ld    .~ 10
   & model_save  .~ 2
   & model_inv   .~ 3
+  & model_name  .~ "rowboat girlyman"
 
 primaris :: Model
 primaris = meq
@@ -54,11 +69,13 @@ primarisAncient = primaris
 
 dreadnought :: Model
 dreadnought = meq
-  & model_att  .~ 4
-  & model_str  .~ 6
-  & model_tgh  .~ 7
-  & model_wnd  .~ 8
-  & model_name .~ "dreadnought"
+  & model_class .~ Vehicle
+  & model_str   .~ 6
+  & model_tgh   .~ 7
+  & model_wnd   .~ 8
+  & model_att   .~ 4
+  & model_ld    .~ 8
+  & model_name  .~ "dreadnought"
 
 venDreadnought :: Model
 venDreadnought = dreadnought
@@ -68,7 +85,7 @@ venDreadnought = dreadnought
   & model_name .~ "venerable dreadnought"
 
 redemptorDreadnought :: Model
-redemptorDreadnought = meq
+redemptorDreadnought = dreadnought
   & model_att  .~  5
   & model_wnd  .~ 13
   & model_str  .~  6
@@ -100,16 +117,18 @@ stormraven = rhino
 
 landraider :: Model
 landraider = rhino
-  & model_att           .~  6
   & model_wnd           .~ 16
   & model_str           .~  8
   & model_tgh           .~  8
+  & model_att           .~  6
+  & model_ld            .~ 9
   & model_save          .~  2
   & model_machineSpirit .~ True
   & model_name          .~ "landraider"
 
 knightPaladin :: Model
 knightPaladin = meq
+  & model_class         .~ Vehicle
   & model_str           .~ 8
   & model_tgh           .~ 8
   & model_wnd           .~ 24
@@ -129,6 +148,20 @@ titanicFeet = basic_ccw
   & ccw_dmg      .~ d3
 
 -- RANGED WEAPONS
+
+sniperRifle :: RngWeapon
+sniperRifle = bolter
+  & rw_class                     .~ Heavy
+  & rw_weapon.w_hooks.hook_wound .~ Just (RollHook 6 (WoundHookMortalWounds (return 1)))
+  & rw_name                      .~ "sniper rifle"
+
+quietusRifle :: RngWeapon
+quietusRifle = sniperRifle
+  & rw_shots                     .~ return 2
+  & rw_ap                        .~ -1
+  & rw_dmg                       .~ d3
+  & rw_weapon.w_hooks.hook_wound .~ Nothing
+  & rw_name                      .~ "quietus rifle"
 
 hunterkiller :: RngWeapon
 hunterkiller = krakMissile
@@ -188,6 +221,13 @@ intercessor = basicEquippedModel primaris
   & em_rw    .~ (bolter & rw_ap .~ -1)
   & em_name  .~ "primaris intercessor"
 
+telion :: EquippedModel
+telion = basicEquippedModel scoutSargeant
+  & em_model.model_bs  .~ 2
+  & em_model.model_wnd .~ 4
+  & em_rw              .~ quietusRifle
+  & em_name            .~ "sargeant telion"
+
 razorback's :: RngWeapon -> EquippedModel
 razorback's rw = basicEquippedModel razorback
   & em_rw    .~ rw
@@ -227,6 +267,11 @@ knightPaladin's ccw rw = basicEquippedModel knightPaladin
 
 
 -- [EQUIPPED MODELS]
+
+sniperSquad :: Int -> [EquippedModel]
+sniperSquad n =
+    (basicEquippedModel scoutSargeant & em_rw .~ sniperRifle)
+    : replicate (n-1) (basicEquippedModel scout & em_rw .~ sniperRifle)
 
 meltaStormraven :: [EquippedModel]
 meltaStormraven =

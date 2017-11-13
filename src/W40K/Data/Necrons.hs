@@ -41,6 +41,7 @@ praetorian = lychguard
 
 triarchStalker :: Model
 triarchStalker = immortal
+  & model_class            .~ Vehicle
   & model_str              .~ 7
   & model_tgh              .~ 6
   & model_wnd              .~ 10
@@ -59,6 +60,7 @@ ghostArk = triarchStalker
 
 nightScythe :: Model
 nightScythe = immortal
+  & model_class                .~ Vehicle
   & model_ws                   .~ 6
   & model_str                  .~ 6
   & model_tgh                  .~ 6
@@ -80,30 +82,33 @@ destroyer = immortal
 
 canoptekWraith :: Model
 canoptekWraith = warrior
-  & model_str  .~ 6
-  & model_tgh  .~ 5
-  & model_wnd  .~ 3
-  & model_att  .~ 3
-  & model_save .~ 4
-  & model_inv  .~ 3
-  & model_name .~ "canoptek wraith"
+  & model_class .~ Beast
+  & model_str   .~ 6
+  & model_tgh   .~ 5
+  & model_wnd   .~ 3
+  & model_att   .~ 3
+  & model_save  .~ 4
+  & model_inv   .~ 3
+  & model_name  .~ "canoptek wraith"
 
 canoptekSpyder :: Model
 canoptekSpyder = immortal
-  & model_ws   .~ 4
-  & model_bs   .~ 4
-  & model_str  .~ 6
-  & model_tgh  .~ 6
-  & model_wnd  .~ 4
-  & model_att  .~ 4
-  & model_name .~ "canoptek spyder"
+  & model_class .~ Monster
+  & model_ws    .~ 4
+  & model_bs    .~ 4
+  & model_str   .~ 6
+  & model_tgh   .~ 6
+  & model_wnd   .~ 4
+  & model_att   .~ 4
+  & model_name  .~ "canoptek spyder"
 
 monolith :: Model
 monolith = immortal
-  & model_ws   .~ 6
-  & model_bs   .~ 3
-  & model_str  .~ 8
-  & model_tgh  .~ 8
-  & model_wnd  .~ 20
-  & model_att  .~ 3
-  & model_name .~ "necron monolith"
+  & model_class .~ Vehicle
+  & model_ws    .~ 6
+  & model_bs    .~ 3
+  & model_str   .~ 8
+  & model_tgh   .~ 8
+  & model_wnd   .~ 20
+  & model_att   .~ 3
+  & model_name  .~ "necron monolith"

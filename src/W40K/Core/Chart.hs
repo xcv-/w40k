@@ -1,26 +1,32 @@
 {-# language BangPatterns #-}
+{-# language GADTs #-}
 {-# language FlexibleContexts #-}
+{-# language RankNTypes #-}
+{-# language TypeApplications #-}
 {-# language TypeFamilies #-}
+{-# language UndecidableInstances #-}
 module W40K.Core.Chart where
+
+import Data.Coerce (coerce)
+import Data.Constraint (Dict(..))
+import Data.Reflection (Given(..), give)
 
 import Control.Monad (forM_, (<=<))
 import Control.Monad.State (evalState, evalStateT, execStateT)
 import Control.DeepSeq (NFData, force)
 
-import Diagrams.Prelude hiding (Renderable(..), trace)
+import Diagrams.Prelude hiding (trace)
 import Diagrams.Backend.CmdLine (mainWith)
 import Diagrams.Backend.SVG.CmdLine (SVG)
-import Graphics.Rendering.Chart.Easy
-import Graphics.Rendering.Chart.Backend.Diagrams
+
+import qualified Graphics.Rendering.Chart                  as Chart
+import qualified Graphics.Rendering.Chart.Backend.Diagrams as ChartD
 
 import Debug.Trace
 
-import W40K.Core.Prob (Event(..), Prob, events, densityToDistribution)
+import W40K.Core.Prob (Event(..), Prob, QQ, events, distribution, revDistribution)
 import W40K.Core.Mechanics
 
-data AnalysisOrder = ByAttacker | ByTarget
-type AnalysisFun a = (String, CombatType -> [EquippedModel] -> Model -> Prob a)
-type NamedEqUnit = (String, CombatType, [EquippedModel])
 
 moreColors :: [AlphaColour Double]
 moreColors = cycle $ map opaque
@@ -38,68 +44,121 @@ titleCombatType :: CombatType -> String
 titleCombatType Melee  = "(melee)"
 titleCombatType Ranged = "(ranged)"
 
-analyzeAllByAttacker :: NFData a => AnalysisFun a -> [NamedEqUnit] -> [Model] -> [(String, [(String, Prob a)])]
-analyzeAllByAttacker (testName, test) squads tgts =
-    [ (title, [ trace (title ++ " " ++ legend) $ force (legend, test ct squad tgt)
+
+data AnalysisOrder = ByAttacker | ByTarget
+
+type NamedEqUnit = (String, CombatType, [EquippedModel])
+
+data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
+
+data AnalysisFn tgt r where
+    NumWounds      :: ProbPlotType -> AnalysisFn Model        (Prob Int)
+    SlainModels    :: ProbPlotType -> AnalysisFn Model        (Prob QQ)
+    SlainModelsInt :: ProbPlotType -> AnalysisFn Model        (Prob Int)
+    ProbKill       ::                 AnalysisFn (Int, Model) QQ
+    ProbKillOne    ::                 AnalysisFn Model        QQ
+
+data AnalysisConfig tgt r = AnalysisConfig AnalysisOrder (AnalysisFn tgt r) [NamedEqUnit] [tgt]
+
+analysisFnName :: AnalysisFn tgt r -> String
+analysisFnName (NumWounds _)      = "# wounds"
+analysisFnName (SlainModels _)    = "# slain models"
+analysisFnName (SlainModelsInt _) = "# wholly slain models"
+analysisFnName ProbKill           = "" -- unused (grouped later in a bar plot)
+analysisFnName ProbKillOne        = "" -- unused (grouped later in a bar plot)
+
+analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
+analysisFnTgtName (NumWounds _)      = (^.model_name)
+analysisFnTgtName (SlainModels _)    = (^.model_name)
+analysisFnTgtName (SlainModelsInt _) = (^.model_name)
+analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.model_name
+analysisFnTgtName ProbKillOne        = (^.model_name)
+
+applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
+applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs
+applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs
+applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs
+applyAnalysisFn ProbKill           ct srcs = uncurry $ probKill ct srcs
+applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1
+
+analyzeAllByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> [(String, [(String, r)])]
+analyzeAllByAttacker fn squads tgts =
+    [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
               | tgt <- tgts
               , let legend = legendTgt tgt ])
     | (squadName, ct, squad) <- squads
     , let title = titleAtt squadName ct ]
   where
-    titleAtt name ct = testName ++ " attacking with " ++ name ++ " " ++ titleCombatType ct
-    legendTgt model = "vs " ++ model^.model_name
+    titleAtt name ct = analysisFnName fn ++ " attacking with " ++ name ++ " " ++ titleCombatType ct
+    legendTgt tgt = "vs " ++ analysisFnTgtName fn tgt
 
-analyzeAllByTarget :: NFData a => AnalysisFun a -> [NamedEqUnit] -> [Model] -> [(String, [(String, Prob a)])]
-analyzeAllByTarget (testName, test) squads tgts =
-    [ (title, [ trace (title ++ " " ++ legend) $ force (legend, test ct squad tgt)
+analyzeAllByTarget :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> [(String, [(String, r)])]
+analyzeAllByTarget fn squads tgts =
+    [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
               | (squadName, ct, squad) <- squads
               , let legend = legendAtt squadName ct])
     | tgt <- tgts
     , let title = titleTgt tgt ]
   where
     legendAtt name ct = "by " ++ name ++ " " ++ titleCombatType ct
-    titleTgt model = testName ++ " targeting " ++ model^.model_name
+    titleTgt tgt = analysisFnName fn ++ " targeting " ++ analysisFnTgtName fn tgt
 
-densityChart :: PlotValue a => String -> Prob a -> EC l (a, PlotLines a Percent)
-densityChart title dist =
-    let evts    = relevantEvents dist
-        lastEvt = let (Event a _) = last evts in a
-    in
-        fmap ((,) lastEvt)
-             (line title [[ (a, Percent (realToFrac $ p*100)) | Event a p <- events dist]])
+eventChart :: Chart.PlotValue a => String -> [Event a] -> [Event a] -> (a, Chart.PlotLines a Chart.Percent)
+eventChart title relevantEvts evts =
+    (lastEvt, def & Chart.plot_lines_title  .~ title
+                  & Chart.plot_lines_values .~ [[(a, Chart.Percent (realToFrac $ p*100)) | Event a p <- evts]])
   where
-    relevantEvents :: Prob a -> [Event a]
-    relevantEvents dist' =
-        case takeUntilPercent 0.99 (events dist') of
-            []   -> events dist'
-            evts -> evts
+    lastEvt =
+      let (Event a _) = last relevantEvts
+      in a
 
-    takeUntilPercent :: Double -> [Event a] -> [Event a]
-    takeUntilPercent !q []                   = []
-    takeUntilPercent !q (e@(Event _ p) : es)
+densityChart :: Chart.PlotValue a => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+densityChart title prob = eventChart title (relevantEvents dens) dens
+  where
+    dens = events prob
+
+    relevantEvents :: [Event a] -> [Event a]
+    relevantEvents evts =
+        case takeUntilAccumPercent 0.99 evts of
+            []    -> evts
+            evts' -> evts'
+
+    takeUntilAccumPercent :: Double -> [Event a] -> [Event a]
+    takeUntilAccumPercent !q []                   = []
+    takeUntilAccumPercent !q (e@(Event _ p) : es)
       | q <= 0    = []
-      | otherwise = e : takeUntilPercent (q - p) es
+      | otherwise = e : takeUntilAccumPercent (q - p) es
 
-distributionChart :: (Ord a, PlotValue a) => String -> Prob a -> EC l (a, PlotLines a Percent)
-distributionChart title dist = densityChart title (densityToDistribution dist)
+distributionChart :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+distributionChart title prob = eventChart title (relevantEvents dist) dist
+  where
+    dist = distribution prob
+    relevantEvents = takeWhile (\(Event _ p) -> p <= 0.99)
 
-plotAnalysis :: (Ord a, PlotValue a) => [(String, [(String, Prob a)])] -> [Layout a Percent]
-plotAnalysis =
-      map (exec . uncurry foldPlots)
-    . map (_2.mapped %~ plot)
+revDistributionChart :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+revDistributionChart title prob = eventChart title (relevantEvents revDist) revDist
+  where
+    revDist = revDistribution prob
+    relevantEvents = takeWhile (\(Event _ p) -> p >= 1 - 0.99)
+
+probAnalysisChart :: (Ord a, Chart.PlotValue a) => ProbPlotType -> [(String, [(String, Prob a)])] -> [Chart.Layout a Chart.Percent]
+probAnalysisChart plotType =
+      map (uncurry buildLayout)
     . uniformLimits
-    . map (_2.mapped %~ uncurry densityChart)
+    . map (_2.mapped %~ uncurry (chartFn plotType))
   where
     mb << ma = ma >> mb
 
-    exec :: PlotValue a => EC (Layout a Percent) () -> Layout a Percent
-    exec m = evalState (execStateT m def) (def & colors .~ moreColors)
+    chartFn DensityPlot         = densityChart
+    chartFn DistributionPlot    = distributionChart
+    chartFn RevDistributionPlot = revDistributionChart
 
-    foldPlots :: String -> [EC (Layout a Percent) ()] -> EC (Layout a Percent) ()
-    foldPlots title plots = foldr (<<) (layout_title .= title) plots
-
-    unwrap :: Default l => EC l b -> b
-    unwrap m = evalState (evalStateT m def) def
+    buildLayout :: Chart.PlotValue a => String -> [Chart.PlotLines a Chart.Percent] -> Chart.Layout a Chart.Percent
+    buildLayout title linePlots = def
+        & Chart.layout_title .~ title
+        & Chart.layout_plots .~ map Chart.toPlot (zipWith setColor moreColors linePlots)
+      where
+       setColor = set (Chart.plot_lines_style . Chart.line_color)
 
     nonEmptyTakeWhile :: (a -> Bool) -> [a] -> [a]
     nonEmptyTakeWhile pred xs =
@@ -107,36 +166,89 @@ plotAnalysis =
           []  -> xs
           xs' -> xs'
 
-    uniformLimits :: (Ord a, Default l)
-                  => [(String, [EC l (a, PlotLines a Percent)])]
-                  -> [(String, [EC l (PlotLines a Percent)])]
+    uniformLimits :: Ord a
+                  => [(String, [(a, Chart.PlotLines a Chart.Percent)])]
+                  -> [(String, [Chart.PlotLines a Chart.Percent])]
     uniformLimits ls =
-        case concatMap (map (fst . unwrap) . snd) ls of
+        case ls^..traverse._2.traverse._1 of
             [] -> []
             as -> let a = maximum as
-                  in  ls & mapped._2.mapped.mapped %~ \(_,pl) ->
-                        pl & plot_lines_values.mapped %~ nonEmptyTakeWhile (\(a',_) -> a' <= a)
+                  in  ls & mapped._2.mapped %~ \(_,pl) ->
+                        pl & Chart.plot_lines_values . mapped %~ nonEmptyTakeWhile (\(a',_) -> a' <= a)
 
-renderPlots :: PlotValue a => [Layout a Percent] -> IO [Diagram SVG]
-renderPlots frames = do
-    let sz@(w,h) = (1280, 720)
-    env <- defaultEnv vectorAlignmentFns w h
+newtype BarPlotIndex = BarPlotIndex { getBarPlotIndex :: Chart.PlotIndex }
+    deriving (Eq, Ord)
+
+instance Given [String] => Chart.PlotValue BarPlotIndex where
+    toValue   = coerce (Chart.toValue @Chart.PlotIndex)
+    fromValue = coerce (Chart.fromValue @Chart.PlotIndex)
+    autoAxis  = coerce (Chart.autoIndexAxis @Chart.PlotIndex given)
+
+percentAnalysisChart :: String
+                     -> [(String, [(String, QQ)])]
+                     -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
+percentAnalysisChart title results =
+    let (titles,    groups) = unzip results
+        titleIndexes        = map (BarPlotIndex . fst) (Chart.addIndexes titles)
+
+        (barTitles, values) = unzip $ map unzip groups
+        sampleGroupTitles:_ = barTitles
+        barValues           = zip titleIndexes (values & mapped.mapped %~ (*100))
+
+        barPlot             = def & Chart.plot_bars_values      .~ barValues
+                                  & Chart.plot_bars_titles      .~ sampleGroupTitles
+                                  & Chart.plot_bars_spacing     .~ Chart.BarsFixWidth 10
+                                  & Chart.plot_bars_item_styles .~ map (\(_,c) -> (Chart.FillStyleSolid c, Nothing))
+                                                                       (zip sampleGroupTitles moreColors)
+        layoutPlots         = case barTitles of
+                                [] -> []
+                                _:otherTitles
+                                  | any (/= sampleGroupTitles) otherTitles -> error ("mismatching group titles: " ++ show barTitles)
+                                  | otherwise                              -> [Chart.plotBars barPlot]
+
+    in give titles (Dict, def & Chart.layout_title .~ title
+                              & Chart.layout_plots .~ layoutPlots)
+
+renderLayouts :: forall b x y.
+                 ( Chart.PlotValue x, Chart.PlotValue y
+                 , Backend b V2 (N b)
+                 , Renderable (Path V2 (N b)) b
+                 , TypeableFloat (N b)
+                 , V2 ~ V b
+                 , Read (N b))
+              => [Chart.Layout x y] -> IO [Diagram b]
+renderLayouts frames = do
+    let sz = (1280, 720)
+    env <- ChartD.defaultEnv Chart.vectorAlignmentFns 1280 720
     return [ diag | frame <- frames
-                  , let (diag, _) = runBackend env (render (toRenderable frame) sz) ]
+                  , let (diag, _) = ChartD.runBackend env (Chart.render (Chart.toRenderable frame) sz) ]
 
 combinePlotsVert :: (Floating (N b), Ord (N b), V b ~ V2) => [Diagram b] -> Diagram b
 combinePlotsVert = vcat . map alignL
 
-mainWithPlot :: (NFData a, Ord a, PlotValue a) => [(String, [(String, Prob a)])] -> IO ()
-mainWithPlot = mainWith <=< fmap combinePlotsVert . renderPlots . plotAnalysis
 
-mainAnalysis :: (NFData a, PlotValue a)
-             => [(AnalysisOrder, AnalysisFun a, [NamedEqUnit], [Model])]
-             -> IO ()
-mainAnalysis = mainWith <=< fmap combinePlotsVert . mconcat . map (renderPlots . plotAnalysis . analyzeAll)
+analysisFnPlot :: AnalysisFn tgt r -> [(String, [(String, r)])] -> IO [Diagram SVG]
+analysisFnPlot fn results =
+    case fn of
+      NumWounds      ptype -> renderLayouts $ probAnalysisChart ptype results
+      SlainModels    ptype -> renderLayouts $ probAnalysisChart ptype results
+      SlainModelsInt ptype -> renderLayouts $ probAnalysisChart ptype results
+      ProbKill             ->
+          case percentAnalysisChart "kill probability (%)" results of
+            (Dict, layout) -> renderLayouts [layout]
+      ProbKillOne          ->
+          case percentAnalysisChart "kill probability (%)" results of
+            (Dict, layout) -> renderLayouts [layout]
+
+
+mainWithPlot :: AnalysisFn tgt r -> [(String, [(String, r)])] -> IO ()
+mainWithPlot fn =
+    mainWith <=< fmap combinePlotsVert . analysisFnPlot fn
+
+mainAnalysis :: NFData r => [AnalysisConfig tgt r] -> IO ()
+mainAnalysis =
+    mainWith <=< fmap combinePlotsVert . mconcat . map analyzeAll
   where
-    analyzeAll :: NFData a
-               => (AnalysisOrder, AnalysisFun a, [NamedEqUnit], [Model])
-               -> [(String, [(String, Prob a)])]
-    analyzeAll (ByAttacker, test, squads, tgts) = analyzeAllByAttacker test squads tgts
-    analyzeAll (ByTarget,   test, squads, tgts) = analyzeAllByTarget   test squads tgts
+    analyzeAll :: NFData r => AnalysisConfig tgt r -> IO [Diagram SVG]
+    analyzeAll (AnalysisConfig ByAttacker fn srcs tgts) = analysisFnPlot fn $ analyzeAllByAttacker fn srcs tgts
+    analyzeAll (AnalysisConfig ByTarget   fn srcs tgts) = analysisFnPlot fn $ analyzeAllByTarget   fn srcs tgts

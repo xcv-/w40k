@@ -100,7 +100,7 @@ rngDoesWound :: Model -> RngWeapon -> Model -> Int -> Bool
 rngDoesWound src w tgt =
     (>=! requiredRoll - rngWoundMods src w)
   where
-    requiredRoll = requiredWoundRoll (w^.rw_weapon) (w^.rw_str) (tgt^.model_tgh)
+    requiredRoll = requiredWoundRoll (w^.rw_weapon) (w^.rw_str) tgt
 
 rngWoundRoll :: Model -> RngWeapon -> Model -> Prob Bool
 rngWoundRoll src w tgt =
@@ -108,7 +108,7 @@ rngWoundRoll src w tgt =
   where
     rerolls = src^.model_rng_mods.mod_rrtowound <> w^.rw_mods.mod_rrtowound
 
-    requiredRoll = requiredWoundRoll (w^.rw_weapon) (w^.rw_str) (tgt^.model_tgh)
+    requiredRoll = requiredWoundRoll (w^.rw_weapon) (w^.rw_str) tgt
 
 rngProbWound :: Model -> RngWeapon -> Model -> QQ
 rngProbWound src w tgt = probTrue (rngWoundRoll src w tgt)
@@ -148,6 +148,17 @@ rngProbSave rw tgt =
 rngShrinkModels :: [(Model, RngWeapon)] -> [(Model, RngWeapon)]
 rngShrinkModels = groupWith (==) sumShots
   where
+    -- nvm, seems to work
+    -- -- not possible to group mortal wounds, etc yet
+    --eqNoHooks (m1, rw1) (m2, rw2)
+    --  | hasHooks rw1 || hasHooks rw2 = False
+    --  | otherwise                    = m1 == m2 && rw1 == rw2
+    --  where
+    --    hasHooks rw =
+    --      case rw^.rw_weapon.w_hooks of
+    --        RollHooks Nothing Nothing () -> False
+    --        _                            -> True
+
     sumShots (src, w) srcws = (src, w & rw_shots %~ liftA2 (+) (numShots srcws))
 
     numShots = sumProbs . map (^._2.rw_shots)

@@ -40,9 +40,10 @@ module W40K.Core.Prob
   , binomial
   , foldrProbs
   , sumProbs
-  , densityToDistribution
-  , analyze
-  , analyzeInt
+  , distribution
+  , revDistribution
+  , summary
+  , summaryInt
   , mean
   , variance
   , maxEvent
@@ -365,18 +366,25 @@ foldrProbs z f = foldr (liftA2 f) (return z)
 sumProbs :: (Ord a, Num a) => [Prob a] -> Prob a
 sumProbs = foldrProbs 0 (+)
 
-densityToDistribution :: Ord a => Prob a -> Prob a
-densityToDistribution = undefined
+distribution :: Ord a => Prob a -> [Event a]
+distribution (Prob evts) = scanl1 sumEvents evts
+  where
+    sumEvents (Event a p) (Event a' p') = Event a' (p + p')
 
-analyze :: Prob QQ -> IO ()
-analyze p =
+revDistribution :: Ord a => Prob a -> [Event a]
+revDistribution (Prob evts) = scanr1 sumEvents evts
+  where
+    sumEvents (Event a p) (Event a' p') = Event a (p + p')
+
+summary :: Prob QQ -> IO ()
+summary p =
   let mu    = "µ=" ++ show (realToFrac (mean p) :: Double)
       sigma = "σ=" ++ show (sqrt $ realToFrac (variance p) :: Double)
   in
       putStrLn $ mu ++ ", " ++ sigma
 
-analyzeInt :: Prob Int -> IO ()
-analyzeInt = analyze . fmap fromIntegral
+summaryInt :: Prob Int -> IO ()
+summaryInt = summary . fmap fromIntegral
 
 mean :: Prob QQ -> QQ
 mean prob = sum [k * p | Event k p <- events prob]

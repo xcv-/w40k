@@ -286,6 +286,7 @@ brotherhoodChampion stance = greyKnight nemesisSword
   & em_model.model_save    .~ 2
   & em_model.model_inv     .~ 4
   & em_model.model_cc_mods %~ stance
+  & em_model.model_name    .~ "brotherhood champion"
 
 castellanCrowe :: EquippedModel
 castellanCrowe = greyKnight blackBladeAntwyr

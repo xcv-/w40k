@@ -11,13 +11,14 @@ import W40K.Data.Common
 
 commander :: Model
 commander = meq
-  & model_bs   .~ 2
-  & model_str  .~ 5
-  & model_tgh  .~ 5
-  & model_wnd  .~ 6
-  & model_att  .~ 4
-  & model_ld   .~ 9
-  & model_name .~ "tau commander"
+  & model_class .~ Battlesuit
+  & model_bs    .~ 2
+  & model_str   .~ 5
+  & model_tgh   .~ 5
+  & model_wnd   .~ 6
+  & model_att   .~ 4
+  & model_ld    .~ 9
+  & model_name  .~ "tau commander"
 
 ethereal :: Model
 ethereal = meq
@@ -71,12 +72,12 @@ stealthsuit = meq
 
 crisis :: Model
 crisis = commander
-  & model_ws   .~ 5
-  & model_bs   .~ 4
-  & model_wnd  .~ 3
-  & model_att  .~ 2
-  & model_ld   .~ 7
-  & model_name .~ "crisis battlesuit"
+  & model_ws    .~ 5
+  & model_bs    .~ 4
+  & model_wnd   .~ 3
+  & model_att   .~ 2
+  & model_ld    .~ 7
+  & model_name  .~ "crisis battlesuit"
 
 broadside :: Model
 broadside = crisis
@@ -86,14 +87,15 @@ broadside = crisis
 
 ghostkeel :: Model
 ghostkeel = stealthsuit
-  & model_str  .~ 6
-  & model_tgh  .~ 6
-  & model_wnd  .~ 10
-  & model_ld   .~ 8
-  & model_name .~ "ghostkeel"
+  & model_class .~ Battlesuit
+  & model_str   .~ 6
+  & model_tgh   .~ 6
+  & model_wnd   .~ 10
+  & model_ld    .~ 8
+  & model_name  .~ "ghostkeel"
 
 riptide :: Model
-riptide = ghostkeel
+riptide = broadside
   & model_tgh  .~ 7
   & model_wnd  .~ 14
   & model_save .~ 2

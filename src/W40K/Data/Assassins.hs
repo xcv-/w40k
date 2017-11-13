@@ -20,31 +20,27 @@ vindicareModel = meq
   & model_inv  .~ 4
   & model_name .~ "vindicare assassin"
 
-exitusRifleD3 :: Bool -> Weapon
-exitusRifleD3 infantry = basicWeapon "exitus rifle (d3 damage)"
-  & w_ap     .~ -3
-  & w_dmg    .~ d3
-  & w_noinv  .~ True
-  & w_poison .~ if infantry then 2 else 0
+exitusRifleD3 :: Weapon
+exitusRifleD3 = basicWeapon "exitus rifle (d3 damage)"
+  & w_ap       .~ -3
+  & w_dmg      .~ d3
+  & w_noinv    .~ True
+  & w_wounding .~ FixedWoundingAgainst Infantry 2
 
-exitusRifleD6 :: Bool -> Weapon
-exitusRifleD6 infantry = exitusRifleD3 infantry
+exitusRifleD6 :: Weapon
+exitusRifleD6 = exitusRifleD3
   & w_dmg  .~ d6
   & w_name .~ "exitus rifle (d6 damage)"
 
-exitusRifle :: Bool -> RngWeapon
-exitusRifle infantry = null_rw
+exitusRifle :: RngWeapon
+exitusRifle = null_rw
   & rw_shots                     .~ return 1
   & rw_str                       .~ 5
   & rw_class                     .~ Heavy
-  & rw_weapon                    .~ exitusRifleD3 infantry
-  & rw_weapon.w_hooks.hook_wound .~ Just (RollHook 6 (WoundHookModWeapon (exitusRifleD6 infantry)))
+  & rw_weapon                    .~ exitusRifleD3
+  & rw_weapon.w_hooks.hook_wound .~ Just (RollHook 6 (WoundHookModWeapon exitusRifleD6))
   & rw_name                      .~ "exitus rifle"
 
-vindicare :: Bool -> EquippedModel
-vindicare infantry = basicEquippedModel vindicareModel
-  & em_rw .~ exitusRifle infantry
-
-vindicareRifleWounds :: Bool -> Model -> Prob Int
-vindicareRifleWounds infantry tgt =
-    numWounds Ranged [vindicare infantry] tgt
+vindicare :: EquippedModel
+vindicare = basicEquippedModel vindicareModel
+  & em_rw .~ exitusRifle

@@ -30,6 +30,7 @@ tyranidWarrior = meq
 
 hiveTyrant :: Model
 hiveTyrant = meq
+  & model_class .~ Monster
   & model_ws    .~ 2
   & model_bs    .~ 3
   & model_str   .~ 6
@@ -60,14 +61,15 @@ hiveGuard = meq
 
 nonMovingExocrineModel :: Model
 nonMovingExocrineModel = meq
-  & model_att  .~ 3
-  & model_ws   .~ 4
-  & model_bs   .~ 3
-  & model_str  .~ 7
-  & model_tgh  .~ 8
-  & model_wnd  .~ 12
-  & model_ld   .~ 6
-  & model_name .~ "non-moving exocrine"
+  & model_class .~ Monster
+  & model_att   .~ 3
+  & model_ws    .~ 4
+  & model_bs    .~ 3
+  & model_str   .~ 7
+  & model_tgh   .~ 8
+  & model_wnd   .~ 12
+  & model_ld    .~ 6
+  & model_name  .~ "non-moving exocrine"
 
 -- RANGED WEAPONS
 

@@ -10,6 +10,33 @@ import W40K.Data.Common
 
 -- MODELS
 
+warlock :: Model
+warlock = meq
+  & model_ws   .~ 3
+  & model_bs   .~ 3
+  & model_str  .~ 3
+  & model_tgh  .~ 3
+  & model_wnd  .~ 2
+  & model_att  .~ 2
+  & model_ld   .~ 8
+  & model_save .~ 6
+  & model_inv  .~ 4
+  & model_name .~ "warlock"
+
+farseer :: Model
+farseer = warlock
+  & model_ws   .~ 2
+  & model_bs   .~ 2
+  & model_str  .~ 3
+  & model_tgh  .~ 3
+  & model_wnd  .~ 5
+  & model_att  .~ 2
+  & model_ld   .~ 9
+  & model_save .~ 6
+  & model_inv  .~ 4
+  & model_name .~ "farseer"
+  -- TODO: Ghosthelm
+
 wraithguard :: Model
 wraithguard = meq
   & model_str  .~ 5
@@ -47,14 +74,15 @@ waveSerpent = rhino
 
 wraithlord :: Model
 wraithlord = wraithguard
-  & model_str  .~ 7
-  & model_tgh  .~ 7
-  & model_att  .~ 3
-  & model_wnd  .~ 10
-  & model_name .~ "wraithlord"
+  & model_class .~ Monster
+  & model_str   .~ 7
+  & model_tgh   .~ 7
+  & model_att   .~ 3
+  & model_wnd   .~ 10
+  & model_name  .~ "wraithlord"
 
 wraithknight :: Model
-wraithknight = wraithguard
+wraithknight = wraithlord
   & model_str  .~ 8
   & model_tgh  .~ 8
   & model_wnd  .~ 24

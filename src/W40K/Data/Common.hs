@@ -47,7 +47,8 @@ nosave = 9999
 
 meq :: Model
 meq = Model
-  { _model_ws               = 3
+  { _model_class            = Infantry
+  , _model_ws               = 3
   , _model_bs               = 3
   , _model_str              = 4
   , _model_tgh              = 4
@@ -77,14 +78,15 @@ teq = meq
 
 rhino :: Model
 rhino = meq
-  & model_ws   .~  6
-  & model_str  .~  6
-  & model_tgh  .~  7
-  & model_att  .~  3
-  & model_wnd  .~ 10
-  & model_ld   .~  8
-  & model_save .~  3
-  & model_name .~ "rhino"
+  & model_class .~ Vehicle
+  & model_ws    .~  6
+  & model_str   .~  6
+  & model_tgh   .~  7
+  & model_att   .~  3
+  & model_wnd   .~ 10
+  & model_ld    .~  8
+  & model_save  .~  3
+  & model_name  .~ "rhino"
 
 
 -- PSYCHIC

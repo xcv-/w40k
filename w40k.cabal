@@ -36,7 +36,7 @@ library
                        vector, vector-algorithms,
                        MemoTrie,
                        math-functions,
-                       transformers, mtl, lens,
+                       transformers, mtl, lens, constraints, reflection,
                        diagrams-lib, diagrams-svg, Chart, Chart-diagrams
   default-language:    Haskell2010
   ghc-options:         -O3

@@ -144,14 +144,20 @@ data RollHooks = RollHooks
 noHooks :: RollHooks
 noHooks = RollHooks Nothing Nothing ()
 
+data ModelClass = Infantry | Monster | Vehicle | Swarm | Cavalry | Biker | Beast | Battlesuit
+  deriving (Eq, Ord)
+
+data WeaponWoundingMode = UseStrength | FixedWoundingAgainst !ModelClass !Int
+  deriving (Eq, Ord)
+
 data Weapon = Weapon
-  { _w_ap     :: Int
-  , _w_dmg    :: Prob Int
-  , _w_mods   :: RollMods
-  , _w_noinv  :: Bool
-  , _w_poison :: Int
-  , _w_hooks  :: RollHooks
-  , _w_name   :: String
+  { _w_ap       :: !Int
+  , _w_dmg      :: !(Prob Int)
+  , _w_mods     :: !RollMods
+  , _w_noinv    :: !Bool
+  , _w_wounding :: !WeaponWoundingMode
+  , _w_hooks    :: !RollHooks
+  , _w_name     :: !String
   }
   deriving (Eq, Ord)
 
@@ -161,13 +167,13 @@ makeLenses ''Weapon
 
 basicWeapon :: String -> Weapon
 basicWeapon name = Weapon
-  { _w_ap     = 0
-  , _w_dmg    = return 1
-  , _w_mods   = noMods
-  , _w_noinv  = False
-  , _w_poison = 0
-  , _w_hooks  = noHooks
-  , _w_name   = name
+  { _w_ap       = 0
+  , _w_dmg      = return 1
+  , _w_mods     = noMods
+  , _w_noinv    = False
+  , _w_wounding = UseStrength
+  , _w_hooks    = noHooks
+  , _w_name     = name
   }
 
 
@@ -196,7 +202,8 @@ probFailSave w tgt = 1 - probSave w tgt
 -- MODELS
 
 data Model = Model
-  { _model_ws               :: Int
+  { _model_class            :: ModelClass
+  , _model_ws               :: Int
   , _model_bs               :: Int
   , _model_str              :: Int
   , _model_tgh              :: Int
@@ -280,14 +287,22 @@ roll rr d noModPass modPass = do
         RerollFailed | not (noModPass k) -> True
         otherwise                        -> False
 
-requiredWoundRoll :: Weapon -> Int -> Int -> Int
-requiredWoundRoll w str tgh
-  | w^.w_poison > 0 = w^.w_poison
-  | 2*str <=   tgh  = 6
-  |   str >= 2*tgh  = 2
-  |   str <    tgh  = 5
-  |   str >    tgh  = 3
-  | otherwise       = 4
+requiredWoundRoll :: Weapon -> Int -> Model -> Int
+requiredWoundRoll w str tgt =
+    case w^.w_wounding of
+      UseStrength -> compareStrTgh str (tgt^.model_tgh)
+
+      FixedWoundingAgainst cls minWndRoll
+        | tgt^.model_class == cls -> minWndRoll
+        | otherwise               -> compareStrTgh str (tgt^.model_tgh)
+  where
+    compareStrTgh str tgh
+      | 2*str <=   tgh = 6
+      |   str >= 2*tgh = 2
+      |   str <    tgh = 5
+      |   str >    tgh = 3
+      | otherwise      = 4
+
 
 groupWith :: forall a b. (a -> a -> Bool) -> (a -> [a] -> b) -> [a] -> [b]
 groupWith eqrel fold = map combine . groupBy eqrel

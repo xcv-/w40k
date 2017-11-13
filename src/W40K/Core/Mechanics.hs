@@ -12,6 +12,7 @@ module W40K.Core.Mechanics
   , basicEquippedModel
   , Modifier
   , with
+  , applyAura
   , within
   , twoHighest
   , numWounds
@@ -241,9 +242,12 @@ type Modifier = [EquippedModel] -> [EquippedModel]
 with :: (EquippedModel -> EquippedModel) -> [EquippedModel] -> [EquippedModel]
 with = map
 
+applyAura :: Aura -> EquippedModel -> EquippedModel
+applyAura aura = (em_model.model_cc_mods  <>~ aura^.aura_cc)
+               . (em_model.model_rng_mods <>~ aura^.aura_rng)
+
 within :: Aura -> [EquippedModel] -> [EquippedModel]
-within aura = map $ (em_model.model_cc_mods  <>~ aura^.aura_cc)
-                  . (em_model.model_rng_mods <>~ aura^.aura_rng)
+within = map . applyAura
 
 twoHighest :: Ord a => a -> a -> a -> (a, a)
 twoHighest a b c

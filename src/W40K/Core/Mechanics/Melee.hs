@@ -89,7 +89,7 @@ ccDoesWound src w tgt =
   where
     requiredRoll = requiredWoundRoll (w^.ccw_weapon)
                                      (applyIntMod (w^.ccw_strMod) $ src^.model_str)
-                                     (tgt^.model_tgh)
+                                     tgt
 
 ccWoundRoll :: Model -> CCWeapon -> Model -> Prob Bool
 ccWoundRoll src w tgt =
@@ -99,7 +99,7 @@ ccWoundRoll src w tgt =
 
     requiredRoll = requiredWoundRoll (w^.ccw_weapon)
                                      (applyIntMod (w^.ccw_strMod) (src^.model_str))
-                                     (tgt^.model_tgh)
+                                     tgt
 
 ccProbWound :: Model -> CCWeapon -> Model -> QQ
 ccProbWound src w tgt = probTrue (ccWoundRoll src w tgt)
