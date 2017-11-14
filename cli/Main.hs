@@ -315,27 +315,53 @@ main = do
     --                           ++ concat (replicate 2 (Marines.sniperSquad 5))) 1 Chaos.daemonPrince
 
     mainAnalysis
-        [ AnalysisConfig ByTarget ProbKillOne
-             (setCombatType Ranged
-                 [ ("vindicare assassin", [Assassins.vindicare])
-                 , ("vindicare, telion and 1 sniper squad",
-                      [Assassins.vindicare]
-                        ++ [Marines.telion]
-                        ++ with Marines.telionAbility (Marines.sniperSquad 5))
-                 , ("3 sniper squads", map (em_model.model_att .~ 1) $ map (em_model.model_name .~ "scout") $ map (em_model.model_ld .~ 8) $ concat $ replicate 3 $ Marines.sniperSquad 5)
-                 , ("100 snipers",     map (em_model.model_att .~ 1) $ map (em_model.model_name .~ "scout") $ map (em_model.model_ld .~ 8) $ Marines.sniperSquad 100)
-                 , ("3 sniper squads with telion",
-                     [Marines.telion]
-                       ++ with Marines.telionAbility (Marines.sniperSquad 5)
-                       ++ concat (replicate 2 (Marines.sniperSquad 5)))
+        [ AnalysisConfig ByTarget (SlainModels RevDistributionPlot)
+             (setCombatType Melee
+                 [ ("5 sword terminators",                  GK.gkTerminatorSquad 5 GK.nemesisSword)
+                 , ("5 falchion terminators",               GK.gkTerminatorSquad 5 GK.twoFalchions)
+                 , ("5 halberd terminators",                GK.gkTerminatorSquad 5 GK.halberd)
+                 , ("5 stave terminators",                  GK.gkTerminatorSquad 5 GK.wardingStave)
+                 --, ("5 sword terminators (with GM)",        within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.nemesisSword)
+                 --, ("5 falchion terminators (with GM)",     within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.twoFalchions)
+                 --, ("5 halberd terminators (with GM)",      within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.halberd)
+                 --, ("5 stave terminators (with GM)",        within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.wardingStave)
+                 --, ("5 sword terminators (with draigo)",    within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.nemesisSword)
+                 --, ("5 falchion terminators (with draigo)", within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.twoFalchions)
+                 --, ("5 halberd terminators (with draigo)",  within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.halberd)
+                 --, ("5 stave terminators (with draigo)",    within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.wardingStave)
                  ])
-             [ Marines.guilliman
-             , Chaos.daemonPrince
-             , GK.voldus^.em_model
-             -- , Eldar.warlock
-             , Eldar.farseer
+             [ Chaos.chaosMarine
+             , Chaos.chaosTerminator
+             , Chaos.plagueMarine
+             , Chaos.blightlordTerminator
              ]
         ]
+
+    --mainAnalysis
+    --    [ AnalysisConfig ByTarget (NumWounds RevDistributionPlot)
+    --         (setCombatType Ranged
+    --             [ ("2 vindicare assassins", [Assassins.vindicare, Assassins.vindicare])
+    --             , ("telion and 1 large sniper squad",
+    --                 [Marines.telion]
+    --                    ++ with Marines.telionAbility (Marines.sniperSquad 10))
+    --             , ("3 large sniper squads", concat $ replicate 3 $ Marines.sniperSquad 10)
+    --             , ("3 large sniper squads with telion",
+    --                 [Marines.telion]
+    --                   ++ with Marines.telionAbility (Marines.sniperSquad 10)
+    --                   ++ concat (replicate 2 (Marines.sniperSquad 10)))
+    --             , ("5 large sniper squads", concat $ replicate 5 $ Marines.sniperSquad 10)
+    --             , ("5 large sniper squads with telion",
+    --                 [Marines.telion]
+    --                   ++ with Marines.telionAbility (Marines.sniperSquad 10)
+    --                   ++ concat (replicate 4 (Marines.sniperSquad 10)))
+    --             ])
+    --         [ Marines.guilliman
+    --         , Chaos.daemonPrince
+    --         , GK.voldus^.em_model
+    --         -- , Eldar.warlock
+    --         --, Eldar.farseer
+    --         ]
+    --    ]
 
     --let hardToHit = model_mods.mod_tobehit -~ 1
 

@@ -28,9 +28,10 @@ module W40K.Core.Prob
   , ifThenElse
   , fail
   , (>>)
-  , forM
-  , sequence
-  , foldlM'
+  , (<<)
+  --, forM
+  --, sequence
+  --, foldlM'
   , uniformly
   , probTrue
   , probFalse
@@ -38,7 +39,9 @@ module W40K.Core.Prob
   , given
   , bernoulli
   , binomial
+  , foldlProbs'
   , foldrProbs
+  , foldProbs
   , sumProbs
   , distribution
   , revDistribution
@@ -59,7 +62,7 @@ import Control.DeepSeq (NFData(..), force)
 import Control.Parallel.Strategies (withStrategy, rpar, rseq, parList)
 
 import Data.Coerce
-import Data.List (foldl', sort, span)
+import Data.List (foldl', sort, sortBy, span)
 import Data.MemoTrie (memo, memo2)
 
 import Data.Vector (Vector)
@@ -129,16 +132,20 @@ class ConstrMonad c m | m -> c where
     default (>>=) :: Prelude.Monad m => m a -> (a -> m b) -> m b
     ma >>= f = ma Prelude.>>= f
 
+infixl 1 >>=
+
 fmap :: (ConstrMonad c m, c a, c b) => (a -> b) -> m a -> m b
 fmap f ma = do
     a <- ma
     return (f a)
+{-# noinline fmap #-}
 
 liftA2 :: (ConstrMonad c m, c a, c b, c d) => (a -> b -> d) -> m a -> m b -> m d
 liftA2 f ma mb = do
     a <- ma
     b <- mb
     return (f a b)
+{-# inlinable liftA2 #-}
 
 liftA3 :: (ConstrMonad c m, c a, c b, c d, c e) => (a -> b -> d -> e) -> m a -> m b -> m d -> m e
 liftA3 f ma mb md = do
@@ -146,9 +153,12 @@ liftA3 f ma mb md = do
     b <- mb
     d <- md
     return (f a b d)
+{-# inlinable liftA3 #-}
 
 (=<<)  :: (ConstrMonad c m, c a, c b) => (a -> m b) -> m a -> m b
 f =<< ma = ma >>= f
+infixr 1 =<<
+{-# inline (=<<) #-}
 
 instance ConstrMonad NoConstr IO where
 instance ConstrMonad NoConstr (ST s)
@@ -160,6 +170,25 @@ rnfList aas@(a:as) = a `seq` rnfList as
 
 forceList :: [a] -> [a]
 forceList as = rnfList as `seq` as
+
+fmapProbL :: Ord b => (a -> b) -> ProbL a -> ProbL b
+fmapProbL f (ProbL [Event a p]) = ProbL [Event (f a) p]
+fmapProbL f (ProbL evts)        =
+    ProbL $ forceList $ sortBy (\(Event b _) (Event b' _) -> compare b b') $ group1 [Event (f a) p | Event a p <- evts]
+  where
+    group1 :: Ord a => [Event a] -> [Event a]
+    group1 []     = []
+    group1 (e:es) = group e es
+
+    group :: Ord a => Event a -> [Event a] -> [Event a]
+    group e@(Event a p) ees =
+      case ees of
+        [] -> [e]
+        e'@(Event a' p') : es
+          | a == a'   -> group (Event a (p + p')) es
+          | otherwise -> e : group e' es
+
+{-# rules "fmap/fmapProbL" fmap = fmapProbL #-}
 
 bindProbWithStratL :: Ord b => (forall c. [c] -> [c]) -> ProbL a -> (a -> ProbL b) -> ProbL b
 bindProbWithStratL evalList (ProbL [Event a _]) f = f a
@@ -196,6 +225,7 @@ bindProbWithStratL evalList (ProbL evts) f =
         e'@(Event a' p') : es
           | a == a'   -> group (Event a (p + p')) es
           | otherwise -> e : group e' es
+
 {-# inlinable bindProbWithStratL #-}
 {-# specialize bindProbWithStratL :: (forall c. [c] -> [c]) -> ProbL a -> (a -> ProbL Int) -> ProbL Int #-}
 {-# specialize bindProbWithStratL :: (forall c. [c] -> [c]) -> ProbL a -> (a -> ProbL QQ)  -> ProbL QQ  #-}
@@ -274,25 +304,40 @@ instance ConstrMonad Ord ProbV where
 f |=<<| ma = ma |>>=| f
 {-# inline (|=<<|) #-}
 
+ifThenElse :: Bool -> a -> a -> a
 ifThenElse True  t _ = t
 ifThenElse False _ f = f
+{-# inline ifThenElse #-}
+
+fail :: a
 fail = error "fail called"
+
+(>>) :: (ConstrMonad c m, c a, c b) => m a -> m b -> m b
 ma >> mb = ma >>= \_ -> mb
+infixl 1 >>
+{-# inline (>>) #-}
 
-forM :: (ConstrMonad c m, c b, c [b], c (m [b])) => [a] -> (a -> m b) -> m [b]
-forM []     f = return []
-forM (a:as) f = do
-    b  <- f a
-    bs <- forM as f
-    return (b:bs)
+(<<) :: (ConstrMonad c m, c a, c b) => m b -> m a -> m b
+mb << ma = ma >> mb
+infixr 1 <<
+{-# inline (<<) #-}
 
-sequence :: (ConstrMonad c m, c a, c [a], c (m [a])) => [m a] -> m [a]
-sequence mas = forM mas id
-
-foldlM' f z []     = return z
-foldlM' f z (x:xs) = do
-    y <- f z x
-    y `seq` foldlM' f y xs
+-- forM :: (ConstrMonad c m, c b, c [b], c (m [b])) => [a] -> (a -> m b) -> m [b]
+-- forM []     f = return []
+-- forM (a:as) f = do
+--     b  <- f a
+--     bs <- forM as f
+--     return (b:bs)
+-- {-# inlinable forM #-}
+--
+-- sequence :: (ConstrMonad c m, c a, c [a], c (m [a])) => [m a] -> m [a]
+-- sequence mas = forM mas id
+-- {-# inline sequence #-}
+--
+-- foldlM' f z []     = return z
+-- foldlM' f z (x:xs) = do
+--     y <- f z x
+--     y `seq` foldlM' f y xs
 
 uniformly :: Ord a => [a] -> Prob a
 uniformly as = Prob $ fromList [Event a (1/n) | a <- sort as]
@@ -360,11 +405,20 @@ binomial13 = binomialMemo (1/3)
 binomial16 :: Int -> Prob Int
 binomial16 = binomialMemo (1/6)
 
-foldrProbs :: (Ord a, Ord b) => b -> (a -> b -> b) -> [Prob a] -> Prob b
-foldrProbs z f = foldr (liftA2 f) (return z)
+foldlProbs' :: (Ord a, Ord b) => (b -> a -> b) -> b -> [Prob a] -> Prob b
+foldlProbs' _ z []     = return z
+foldlProbs' f z (p:ps) = do
+    z' <- fmap (f z) p
+    z' `seq` foldlProbs' f z' ps
+
+foldrProbs :: (Ord a, Ord b) => (a -> b -> b) -> b -> [Prob a] -> Prob b
+foldrProbs f z = foldr (liftA2 f) (return z)
+
+foldProbs :: (Ord m, Monoid m) => [Prob m] -> Prob m
+foldProbs = foldlProbs' mappend mempty
 
 sumProbs :: (Ord a, Num a) => [Prob a] -> Prob a
-sumProbs = foldrProbs 0 (+)
+sumProbs = foldlProbs' (+) 0
 
 distribution :: Ord a => Prob a -> [Event a]
 distribution (Prob evts) = scanl1 sumEvents evts

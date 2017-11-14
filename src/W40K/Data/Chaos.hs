@@ -36,11 +36,31 @@ tzaangor = meq
   & model_inv  .~ 5
   & model_name .~ "tzaangor"
 
+chaosMarine :: Model
+chaosMarine = meq
+  & model_name .~ "chaos marine"
+
+chaosTerminator :: Model
+chaosTerminator = meq
+  & model_name .~ "chaos terminator"
+
 rubricMarine :: Model
 rubricMarine = meq
-  & model_ld   .~ 7
   & model_inv  .~ 5
   & model_name .~ "rubric marine"
+
+plagueMarine :: Model
+plagueMarine = meq
+  & model_tgh  .~ 5
+  & model_fnp  .~ 5
+  & model_name .~ "plague marine"
+
+blightlordTerminator :: Model
+blightlordTerminator = teq
+  & model_tgh  .~ 5
+  & model_inv  .~ 4
+  & model_fnp  .~ 5
+  & model_name .~ "blightlord terminator"
 
 -- RANGED WEAPONS
 

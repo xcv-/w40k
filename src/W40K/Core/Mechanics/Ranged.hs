@@ -11,6 +11,8 @@ import Prelude hiding (Functor(..), Monad(..))
 import Data.Monoid ((<>))
 import Control.Lens
 
+import Debug.Trace
+
 import W40K.Core.Prob
 import W40K.Core.Mechanics.Common
 
@@ -146,18 +148,12 @@ rngProbSave rw tgt =
 --     binomial nwounds $ probFalse $ rngSave (w^.rw_weapon) tgt
 
 rngShrinkModels :: [(Model, RngWeapon)] -> [(Model, RngWeapon)]
-rngShrinkModels = groupWith (==) sumShots
+rngShrinkModels = groupWith eqrel sumShots
   where
-    -- nvm, seems to work
-    -- -- not possible to group mortal wounds, etc yet
-    --eqNoHooks (m1, rw1) (m2, rw2)
-    --  | hasHooks rw1 || hasHooks rw2 = False
-    --  | otherwise                    = m1 == m2 && rw1 == rw2
-    --  where
-    --    hasHooks rw =
-    --      case rw^.rw_weapon.w_hooks of
-    --        RollHooks Nothing Nothing () -> False
-    --        _                            -> True
+    relevantModelFields m = (m^.model_bs, m^.model_rng_mods, m^.model_moved, m^.model_machineSpirit)
+
+    eqrel :: (Model, RngWeapon) -> (Model, RngWeapon) -> Bool
+    eqrel (m1,w1) (m2,w2) = relevantModelFields m1 == relevantModelFields m2 && w1 == w2
 
     sumShots (src, w) srcws = (src, w & rw_shots %~ liftA2 (+) (numShots srcws))
 
