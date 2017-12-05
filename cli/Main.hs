@@ -218,174 +218,37 @@ import GreyKnightTests
 --     genericInfantryCcwTest modifier tgt
 
 main = do
-    -- analyze $ numSlainModels Ranged (rapidFiring $ map (em_rw %~ psybolt)
-    --                                              $ strikeSquad 10 twoFalchions)
-    --                                 primaris
+    let tgts = [Eldar.warWalker, Eldar.waveSerpent False, Eldar.wraithlord, Eldar.wraithknight]
 
-    -- genericTestAV id Eldar.waveSerpent
-    -- putStrLn "\n++ vs Primaris"
-    -- genericInfantryRangedTest (within grandMasterAura) Eldar.wraithguard
+    let srcs =
+             setCombatType Melee
+               [ ("5 hammerhanded falchion terminators", GK.hammerhanded $ GK.gkTerminatorSquad 5 GK.twoFalchions)
+               , ("5 hammerhanded halberd terminators",  GK.hammerhanded $ GK.gkTerminatorSquad 5 GK.halberd)
+               , ("4 hammerhanded falchion paladins",    GK.hammerhanded $ GK.paladinSquad 4 GK.twoFalchions)
+               , ("4 hammerhanded halberd paladins",     GK.hammerhanded $ GK.paladinSquad 4 GK.halberd)
+               ]
+             ++
+             setCombatType Melee
+               [ ("5 hammer terminators",                GK.gkTerminatorSquad 5 GK.hammer)
+               , ("4 hammer paladins",                   GK.paladinSquad 4 GK.hammer)
+               , ("hammer apothecary",                   [GK.gkApothecary GK.crys'yllixDestroyer])
+               , ("voldus",                              [GK.voldus])
+               ]
+             ++
+             setCombatType Melee
+               [ ("5 hammer terminators rerolling",      within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.hammer)
+               , ("4 hammer paladins rerolling",         within GK.draigoAura $ GK.paladinSquad 4 GK.hammer)
+               ]
 
-    -- let termies = gkTerminatorSquad 5 hammer
-    --     pallies = paladinSquad 3 hammer
-    --     apothecary = gkApothecary hammer
-    --     banner = brotherhoodAncient
-    --     purifiers = specialWeaponPurifierSquad5 psilencer twoFalchions
+    putStrLn "gk melee av (prob kill)"
 
-    -- putStrLn "\n++ vs Predator"
-
-    -- putStrLn "\n+ Psychic mortal wounds"
-    -- analyzeInt $ castPsychics [ (gkCasting False [draigo]             ritesOfBanishment, Nothing)
-    --                           , (gkCasting True  [draigo]             vortexOfDoom,      Nothing)
-    --                           , (gkCasting False termies              ritesOfBanishment, Nothing)
-    --                           , (gkCasting False [brotherhoodAncient] cleansingFlame,    Nothing)
-    --                           , (gkCasting False purifiers            cleansingFlame,    Nothing)
-    --                           , (gkCasting False [apothecary]         ritesOfBanishment, Nothing)
-    --                           ]
-    --                           predator
-
-    -- putStrLn "\n+ Draigo"
-    -- print $ probKill Melee (within draigoAura $
-    --                                 with brotherhoodBanner $
-    --                                   [draigo])
-    --                              1 predator
-
-    -- putStrLn "\n+ Termies"
-    -- print $ probKill Melee (within draigoAura $
-    --                                 with brotherhoodBanner $
-    --                                   termies)
-    --                              1 predator
-
-    -- putStrLn "\n++ vs Landraider"
-
-    -- putStrLn "\n+ Psychic mortal wounds"
-    -- analyzeInt $ castPsychics [ (gkCasting False [draigo]             ritesOfBanishment, Nothing)
-    --                           , (gkCasting False termies              ritesOfBanishment, Nothing)
-    --                           , (gkCasting False [brotherhoodAncient] cleansingFlame,    Nothing)
-    --                           , (gkCasting False [apothecary]         ritesOfBanishment, Nothing)
-    --                           , (gkCasting True  [draigo]             vortexOfDoom,      Nothing)
-    --                           ]
-    --                           landraider
-
-    -- putStrLn "\n+ Draigo"
-    -- print $ probKill Melee (within draigoAura $
-    --                                 with brotherhoodBanner $
-    --                                   [draigo])
-    --                              1 landraider
-
-    -- putStrLn "\n+ Termies"
-    -- analyzeInt $ numWounds Melee (within draigoAura $
-    --                                 with brotherhoodBanner $
-    --                                   hammerhanded termies)
-    --                              landraider
-
-    -- putStrLn "\n++ vs Knight paladin"
-
-    let dup a = a ++ a
-
-    -- putStrLn "\n+ Land raider (far)"
-    -- analyzeInt $ numWounds Ranged (within draigoAura $
-    --                                  dup (landraider's farMultiMelta : two (landraider's (twin lascannon))))
-    --                               knightPaladinRanged
-
-    let inCover = (model_save -~ 1) . (model_name <>~ " in cover")
-
-
-    --mainAnalysis [ (ByTarget, ("# wounds", numWounds), godhammerAvTest,  [Eldar.waveSerpent])
-    --             , (ByTarget, ("# wounds", numWounds), stormravenAvTest, [Eldar.waveSerpent])
-    --             , (ByTarget, ("# wounds", numWounds), andAuras [ ("AV SR + laser razor", Ranged, [Marines.stormraven's (twin closeMultiMelta)] ++ two (Marines.stormraven's lascannon) ++ two (Marines.stormraven's stormstrike) ++ [Marines.razorback's (twin lascannon)])
-    --                                                   ],                [Eldar.waveSerpent])
-                 -- , (ByTarget, ("# wounds", numWounds), terminatorAvTest, [Eldar.waveSerpent])
-                 -- , (ByTarget, ("# wounds", numWounds), paladinAvTest,    [Eldar.waveSerpent])
-    --           ]
-
-    -- mainAnalysis [ (ByTarget, ("slain models", numSlainModelsInt), smallStrikeRngInfTest, [meq, Marines.primaris, Marines.gravis])
-    --              , (ByTarget, ("slain models", numSlainModelsInt), purifierRngInfTest,    [meq, Marines.primaris, Marines.gravis])
-    --              , (ByTarget, ("slain models", numSlainModelsInt), purgatorRngInfTest,    [meq, Marines.primaris, Marines.gravis])
-    --              , (ByTarget, ("slain models", numSlainModelsInt), smallPagkCcInfTest,    [meq, Marines.primaris, Marines.gravis])
-    --              , (ByTarget, ("slain models", numSlainModelsInt), smallTagkCcInfTest,    [meq, Marines.primaris, Marines.gravis])
-    --              , (ByTarget, ("slain models", numSlainModelsInt), smallPaladinCcInfTest, [meq, Marines.primaris, Marines.gravis])
-    --              , (ByTarget, ("slain models", numSlainModelsInt), largePagkRngInfTest,   [meq, Marines.primaris, Marines.gravis])
-    --              ]
-
-    -- print $ probKill Ranged (dup $ concat $ replicate 3 $ map (em_model.model_ld .~ 7) $ Marines.sniperSquad 5) 1 Chaos.daemonPrince
-
-    -- print $ probKill Ranged (dup $ [Marines.telion]
-    --                           ++ with Marines.telionAbility (Marines.sniperSquad 5)
-    --                           ++ concat (replicate 2 (Marines.sniperSquad 5))) 1 Chaos.daemonPrince
-
-    mainAnalysis
-        [ AnalysisConfig ByTarget (SlainModels RevDistributionPlot)
-             (setCombatType Melee
-                 [ ("5 sword terminators",                  GK.gkTerminatorSquad 5 GK.nemesisSword)
-                 , ("5 falchion terminators",               GK.gkTerminatorSquad 5 GK.twoFalchions)
-                 , ("5 halberd terminators",                GK.gkTerminatorSquad 5 GK.halberd)
-                 , ("5 stave terminators",                  GK.gkTerminatorSquad 5 GK.wardingStave)
-                 --, ("5 sword terminators (with GM)",        within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.nemesisSword)
-                 --, ("5 falchion terminators (with GM)",     within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.twoFalchions)
-                 --, ("5 halberd terminators (with GM)",      within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.halberd)
-                 --, ("5 stave terminators (with GM)",        within GK.grandMasterAura $ GK.gkTerminatorSquad 5 GK.wardingStave)
-                 --, ("5 sword terminators (with draigo)",    within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.nemesisSword)
-                 --, ("5 falchion terminators (with draigo)", within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.twoFalchions)
-                 --, ("5 halberd terminators (with draigo)",  within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.halberd)
-                 --, ("5 stave terminators (with draigo)",    within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.wardingStave)
-                 ])
-             [ Chaos.chaosMarine
-             , Chaos.chaosTerminator
-             , Chaos.plagueMarine
-             , Chaos.blightlordTerminator
-             ]
+    analysisToSvgFile "gk-melee-av-probkill.svg"
+        [ analysisConfig' ByTarget ProbKillOne tgts srcs
         ]
 
-    --mainAnalysis
-    --    [ AnalysisConfig ByTarget (NumWounds RevDistributionPlot)
-    --         (setCombatType Ranged
-    --             [ ("2 vindicare assassins", [Assassins.vindicare, Assassins.vindicare])
-    --             , ("telion and 1 large sniper squad",
-    --                 [Marines.telion]
-    --                    ++ with Marines.telionAbility (Marines.sniperSquad 10))
-    --             , ("3 large sniper squads", concat $ replicate 3 $ Marines.sniperSquad 10)
-    --             , ("3 large sniper squads with telion",
-    --                 [Marines.telion]
-    --                   ++ with Marines.telionAbility (Marines.sniperSquad 10)
-    --                   ++ concat (replicate 2 (Marines.sniperSquad 10)))
-    --             , ("5 large sniper squads", concat $ replicate 5 $ Marines.sniperSquad 10)
-    --             , ("5 large sniper squads with telion",
-    --                 [Marines.telion]
-    --                   ++ with Marines.telionAbility (Marines.sniperSquad 10)
-    --                   ++ concat (replicate 4 (Marines.sniperSquad 10)))
-    --             ])
-    --         [ Marines.guilliman
-    --         , Chaos.daemonPrince
-    --         , GK.voldus^.em_model
-    --         -- , Eldar.warlock
-    --         --, Eldar.farseer
-    --         ]
-    --    ]
+    putStrLn "gk melee av (# wounds)"
 
-    --let hardToHit = model_mods.mod_tobehit -~ 1
+    analysisToSvgFile "gk-melee-av.svg"
+        [ analysisConfig' ByTarget (NumWounds RevDistributionPlot) tgts srcs
+        ]
 
-    --let rerolling1's = em_model.model_mods.mod_rrtohit <>~ RerollOnes
-
-    --let cacahuete = basicEquippedModel Eldar.wraithguard & em_rw .~ Eldar.wraithcannon
-
-    --print $ probKill Ranged (replicate 5 (rerolling1's cacahuete)) 3 (hardToHit Tyranids.hiveGuard)
-
-    --mainWithPlot
-    --    [ ("wraithguard",
-    --        [ ("vs hard to hit hive guard", numSlainModels Ranged (replicate 5 cacahuete) (hardToHit Tyranids.hiveGuard))
-    --        , ("vs hive guard",             numSlainModels Ranged (replicate 5 cacahuete) Tyranids.hiveGuard)
-    --        ]
-    --      )
-    --    , ("wraithguard (rerolling 1's)",
-    --        [ ("vs hard to hit hive guard", numSlainModels Ranged (replicate 5 (rerolling1's cacahuete)) (hardToHit Tyranids.hiveGuard))
-    --        , ("vs hive guard",             numSlainModels Ranged (replicate 5 (rerolling1's cacahuete)) Tyranids.hiveGuard)
-    --        ]
-    --      )
-    --    ]
-
-    -- mainWithPlot
-    --     [("vindicare",
-    --         [ ("vs girlyman", Assassins.vindicareRifleWounds False Marines.guilliman)
-    --         ])
-    --     ]

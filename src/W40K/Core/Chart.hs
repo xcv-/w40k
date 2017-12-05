@@ -1,7 +1,8 @@
 {-# language BangPatterns #-}
-{-# language GADTs #-}
 {-# language FlexibleContexts #-}
+{-# language GADTs #-}
 {-# language RankNTypes #-}
+{-# language ScopedTypeVariables #-}
 {-# language TypeApplications #-}
 {-# language TypeFamilies #-}
 {-# language UndecidableInstances #-}
@@ -11,12 +12,14 @@ import Data.Coerce (coerce)
 import Data.Constraint (Dict(..))
 import Data.Reflection (Given(..), give)
 
+import Control.Arrow ((***))
 import Control.Monad (forM_, (<=<))
 import Control.Monad.State (evalState, evalStateT, execStateT)
 import Control.DeepSeq (NFData, force)
 
 import Diagrams.Prelude hiding (trace)
-import Diagrams.Backend.CmdLine (mainWith)
+import Diagrams.Backend.SVG         (renderSVG)
+import Diagrams.Backend.CmdLine     (mainWith)
 import Diagrams.Backend.SVG.CmdLine (SVG)
 
 import qualified Graphics.Rendering.Chart                  as Chart
@@ -60,6 +63,11 @@ data AnalysisFn tgt r where
 
 data AnalysisConfig tgt r = AnalysisConfig AnalysisOrder (AnalysisFn tgt r) [NamedEqUnit] [tgt]
 
+type AnalysisResults r = [(String, [(String, r)])]
+
+analysisConfig' :: AnalysisOrder -> AnalysisFn tgt r -> [tgt] -> [NamedEqUnit] -> AnalysisConfig tgt r
+analysisConfig' order fn tgts srcs = AnalysisConfig order fn srcs tgts
+
 analysisFnName :: AnalysisFn tgt r -> String
 analysisFnName (NumWounds _)      = "# wounds"
 analysisFnName (SlainModels _)    = "# slain models"
@@ -81,7 +89,7 @@ applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs
 applyAnalysisFn ProbKill           ct srcs = uncurry $ probKill ct srcs
 applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1
 
-analyzeAllByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> [(String, [(String, r)])]
+analyzeAllByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
 analyzeAllByAttacker fn squads tgts =
     [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
               | tgt <- tgts
@@ -92,7 +100,7 @@ analyzeAllByAttacker fn squads tgts =
     titleAtt name ct = analysisFnName fn ++ " attacking with " ++ name ++ " " ++ titleCombatType ct
     legendTgt tgt = "vs " ++ analysisFnTgtName fn tgt
 
-analyzeAllByTarget :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> [(String, [(String, r)])]
+analyzeAllByTarget :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
 analyzeAllByTarget fn squads tgts =
     [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
               | (squadName, ct, squad) <- squads
@@ -141,7 +149,7 @@ revDistributionChart title prob = eventChart title (relevantEvents revDist) revD
     revDist = revDistribution prob
     relevantEvents = takeWhile (\(Event _ p) -> p >= 1 - 0.99)
 
-probAnalysisChart :: (Ord a, Chart.PlotValue a) => ProbPlotType -> [(String, [(String, Prob a)])] -> [Chart.Layout a Chart.Percent]
+probAnalysisChart :: (Ord a, Chart.PlotValue a) => ProbPlotType -> AnalysisResults (Prob a) -> [Chart.Layout a Chart.Percent]
 probAnalysisChart plotType =
       map (uncurry buildLayout)
     . uniformLimits
@@ -184,9 +192,7 @@ instance Given [String] => Chart.PlotValue BarPlotIndex where
     fromValue = coerce (Chart.fromValue @Chart.PlotIndex)
     autoAxis  = coerce (Chart.autoIndexAxis @Chart.PlotIndex given)
 
-percentAnalysisChart :: String
-                     -> [(String, [(String, QQ)])]
-                     -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
+percentAnalysisChart :: String -> AnalysisResults QQ -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
 percentAnalysisChart title results =
     let (titles,    groups) = unzip results
         titleIndexes        = map (BarPlotIndex . fst) (Chart.addIndexes titles)
@@ -209,8 +215,12 @@ percentAnalysisChart title results =
     in give titles (Dict, def & Chart.layout_title .~ title
                               & Chart.layout_plots .~ layoutPlots)
 
-renderLayouts :: forall b x y.
-                 ( Chart.PlotValue x, Chart.PlotValue y
+
+defaultPlotWidth, defaultPlotHeight :: Num a => a
+defaultPlotWidth = 1280
+defaultPlotHeight = 720
+
+renderLayouts :: ( Chart.PlotValue x, Chart.PlotValue y
                  , Backend b V2 (N b)
                  , Renderable (Path V2 (N b)) b
                  , TypeableFloat (N b)
@@ -218,37 +228,57 @@ renderLayouts :: forall b x y.
                  , Read (N b))
               => [Chart.Layout x y] -> IO [Diagram b]
 renderLayouts frames = do
-    let sz = (1280, 720)
-    env <- ChartD.defaultEnv Chart.vectorAlignmentFns 1280 720
+    let size = (defaultPlotWidth, defaultPlotHeight)
+    env <- ChartD.defaultEnv Chart.vectorAlignmentFns defaultPlotWidth defaultPlotHeight
     return [ diag | frame <- frames
-                  , let (diag, _) = ChartD.runBackend env (Chart.render (Chart.toRenderable frame) sz) ]
+                  , let (diag, _) = ChartD.runBackend env (Chart.render (Chart.toRenderable frame) size) ]
 
 combinePlotsVert :: (Floating (N b), Ord (N b), V b ~ V2) => [Diagram b] -> Diagram b
 combinePlotsVert = vcat . map alignL
 
-
-analysisFnPlot :: AnalysisFn tgt r -> [(String, [(String, r)])] -> IO [Diagram SVG]
+analysisFnPlot :: AnalysisFn tgt r -> AnalysisResults r -> IO (Diagram SVG)
 analysisFnPlot fn results =
-    case fn of
-      NumWounds      ptype -> renderLayouts $ probAnalysisChart ptype results
-      SlainModels    ptype -> renderLayouts $ probAnalysisChart ptype results
-      SlainModelsInt ptype -> renderLayouts $ probAnalysisChart ptype results
-      ProbKill             ->
-          case percentAnalysisChart "kill probability (%)" results of
-            (Dict, layout) -> renderLayouts [layout]
-      ProbKillOne          ->
-          case percentAnalysisChart "kill probability (%)" results of
-            (Dict, layout) -> renderLayouts [layout]
+    fmap combinePlotsVert $
+      case fn of
+        NumWounds      ptype -> renderLayouts $ probAnalysisChart ptype results
+        SlainModels    ptype -> renderLayouts $ probAnalysisChart ptype results
+        SlainModelsInt ptype -> renderLayouts $ probAnalysisChart ptype results
+        ProbKill             ->
+            case percentAnalysisChart "kill probability (%)" results of
+              (Dict, layout) -> renderLayouts [layout]
+        ProbKillOne          ->
+            case percentAnalysisChart "kill probability (%)" results of
+              (Dict, layout) -> renderLayouts [layout]
 
 
-mainWithPlot :: AnalysisFn tgt r -> [(String, [(String, r)])] -> IO ()
-mainWithPlot fn =
-    mainWith <=< fmap combinePlotsVert . analysisFnPlot fn
-
-mainAnalysis :: NFData r => [AnalysisConfig tgt r] -> IO ()
-mainAnalysis =
-    mainWith <=< fmap combinePlotsVert . mconcat . map analyzeAll
+analyze :: forall tgt r. NFData r => AnalysisConfig tgt r -> IO (AnalysisResults r, Diagram SVG)
+analyze (AnalysisConfig order fn srcs tgts) =
+    case order of
+      ByAttacker -> plotResults (analyzeAllByAttacker fn srcs tgts)
+      ByTarget   -> plotResults (analyzeAllByTarget   fn srcs tgts)
   where
-    analyzeAll :: NFData r => AnalysisConfig tgt r -> IO [Diagram SVG]
-    analyzeAll (AnalysisConfig ByAttacker fn srcs tgts) = analysisFnPlot fn $ analyzeAllByAttacker fn srcs tgts
-    analyzeAll (AnalysisConfig ByTarget   fn srcs tgts) = analysisFnPlot fn $ analyzeAllByTarget   fn srcs tgts
+    plotResults :: AnalysisResults r -> IO (AnalysisResults r, Diagram SVG)
+    plotResults rs = do
+        plot <- analysisFnPlot fn rs
+        return (rs, plot)
+
+analyzeAll :: NFData r => [AnalysisConfig tgt r] -> IO (AnalysisResults r, Diagram SVG)
+analyzeAll = fmap ((concat *** combinePlotsVert) . unzip) . mapM analyze
+
+diagramToFile :: FilePath -> Diagram SVG -> IO ()
+diagramToFile path = renderSVG path absolute
+
+resultsToSvgFile :: FilePath -> AnalysisFn tgt r -> AnalysisResults r -> IO ()
+resultsToSvgFile path fn = diagramToFile path <=< analysisFnPlot fn
+
+analysisToSvgFile :: NFData r => FilePath -> [AnalysisConfig tgt r] -> IO (AnalysisResults r)
+analysisToSvgFile path cfgs = do
+    (rs, diag) <- analyzeAll cfgs
+    diagramToFile path diag
+    return rs
+
+mainWithPlot :: AnalysisFn tgt r -> AnalysisResults r -> IO ()
+mainWithPlot fn = mainWith <=< analysisFnPlot fn
+
+mainWithAnalysis :: NFData r => [AnalysisConfig tgt r] -> IO ()
+mainWithAnalysis = mainWith . snd <=< analyzeAll

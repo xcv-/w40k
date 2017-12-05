@@ -63,20 +63,20 @@ warWalker = rhino
   & model_inv  .~ 5
   & model_name .~ "war walker"
 
-waveSerpent :: Model
-waveSerpent = rhino
+waveSerpent :: Bool -> Model
+waveSerpent spiritStones = rhino
   & model_str                  .~ 6
   & model_wnd                  .~ 13
   & model_ld                   .~ 8
   & model_rng_mods.mod_recvdmg .~ Add (-1)
-  & model_fnp                  .~ 6
+  & model_fnp                  .~ (if spiritStones then 6 else 7)
   & model_name                 .~ "wave serpent"
 
 wraithlord :: Model
 wraithlord = wraithguard
   & model_class .~ Monster
   & model_str   .~ 7
-  & model_tgh   .~ 7
+  & model_tgh   .~ 8
   & model_att   .~ 3
   & model_wnd   .~ 10
   & model_name  .~ "wraithlord"
