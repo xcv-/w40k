@@ -158,6 +158,7 @@ data Weapon = Weapon
   , _w_wounding :: !WeaponWoundingMode
   , _w_hooks    :: !RollHooks
   , _w_name     :: !String
+  , _w_points   :: !Int
   }
   deriving (Eq, Ord)
 
@@ -174,6 +175,7 @@ basicWeapon name = Weapon
   , _w_wounding = UseStrength
   , _w_hooks    = noHooks
   , _w_name     = name
+  , _w_points   = 0
   }
 
 
@@ -202,24 +204,25 @@ probFailSave w tgt = 1 - probSave w tgt
 -- MODELS
 
 data Model = Model
-  { _model_class            :: ModelClass
-  , _model_ws               :: Int
-  , _model_bs               :: Int
-  , _model_str              :: Int
-  , _model_tgh              :: Int
-  , _model_att              :: Int
-  , _model_wnd              :: Int
-  , _model_ld               :: Int
-  , _model_save             :: Int
-  , _model_cc_inv           :: Int
-  , _model_rng_inv          :: Int
-  , _model_cc_mods          :: RollMods
-  , _model_rng_mods         :: RollMods
-  , _model_moved            :: Bool
-  , _model_quantumShielding :: Bool
-  , _model_machineSpirit    :: Bool
-  , _model_fnp              :: Int
-  , _model_name             :: String
+  { _model_class            :: !ModelClass
+  , _model_ws               :: !Int
+  , _model_bs               :: !Int
+  , _model_str              :: !Int
+  , _model_tgh              :: !Int
+  , _model_att              :: !Int
+  , _model_wnd              :: !Int
+  , _model_ld               :: !Int
+  , _model_save             :: !Int
+  , _model_cc_inv           :: !Int
+  , _model_rng_inv          :: !Int
+  , _model_cc_mods          :: !RollMods
+  , _model_rng_mods         :: !RollMods
+  , _model_moved            :: !Bool
+  , _model_quantumShielding :: !Bool
+  , _model_machineSpirit    :: !Bool
+  , _model_fnp              :: !Int
+  , _model_name             :: !String
+  , _model_points           :: !Int
   }
   deriving Eq
 

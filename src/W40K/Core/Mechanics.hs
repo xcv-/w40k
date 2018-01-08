@@ -8,7 +8,7 @@ module W40K.Core.Mechanics
   , sumWounds
   , slainModels
   , EquippedModel (..)
-  , em_model, em_ccw, em_rw, em_name
+  , em_model, em_ccw, em_rw, em_name, em_points
   , basicEquippedModel
   , Modifier
   , with
@@ -16,6 +16,7 @@ module W40K.Core.Mechanics
   , within
   , twoHighest
   , numWounds
+  , numWoundsMax
   , numSlainModels
   , numSlainModelsInt
   , probKill
@@ -214,6 +215,13 @@ foldWounds ct tgt f start totalUnsaved = do
 sumWounds :: CombatType -> Model -> TotalUnsavedWounds -> Prob Int
 sumWounds ct tgt = foldWounds ct tgt (+) 0
 
+sumWoundsMax :: CombatType -> Model -> Int -> TotalUnsavedWounds -> Prob Int
+sumWoundsMax ct tgt maxWounds = foldWounds ct tgt f 0
+  where
+    f acc wnd
+      | acc + wnd >= maxWounds = maxWounds
+      | otherwise              = acc + wnd
+
 slainModels :: CombatType -> Model -> TotalUnsavedWounds -> Prob QQ
 slainModels ct tgt =
     fmap summarize . foldWounds ct tgt woundModels (0 :*: 0)
@@ -242,16 +250,19 @@ makeLenses ''EquippedModel
 em_name :: Lens' EquippedModel String
 em_name = em_model.model_name
 
+em_points :: Getter EquippedModel Int
+em_points = to (\em -> em^.em_model.model_points + em^.em_ccw.as_weapon.w_points + em^.em_rw.as_weapon.w_points)
+
 basicEquippedModel :: Model -> EquippedModel
 basicEquippedModel model = EquippedModel model basic_ccw null_rw
 
 
-type Modifier = [EquippedModel] -> [EquippedModel]
+type Modifier = EquippedModel -> EquippedModel
 
-with :: (EquippedModel -> EquippedModel) -> [EquippedModel] -> [EquippedModel]
+with :: Modifier -> [EquippedModel] -> [EquippedModel]
 with = map
 
-applyAura :: Aura -> EquippedModel -> EquippedModel
+applyAura :: Aura -> Modifier
 applyAura aura = (em_model.model_cc_mods  <>~ aura^.aura_cc)
                . (em_model.model_rng_mods <>~ aura^.aura_rng)
 
@@ -273,6 +284,12 @@ numWounds ct srcs tgt =
       Melee  -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs] tgt
       Ranged -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, src^.em_rw)  | src <- srcs] tgt
 
+numWoundsMax :: CombatType -> [EquippedModel] -> Model -> Int -> Prob Int
+numWoundsMax ct srcs tgt maxWounds =
+    case ct of
+      Melee  -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs] tgt
+      Ranged -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, src^.em_rw)  | src <- srcs] tgt
+
 numSlainModels :: CombatType -> [EquippedModel] -> Model -> Prob QQ
 numSlainModels ct srcs tgt =
     case ct of
@@ -283,5 +300,5 @@ numSlainModelsInt :: CombatType -> [EquippedModel] -> Model -> Prob Int
 numSlainModelsInt ct srcs tgt = fmap floor $ numSlainModels ct srcs tgt
 
 probKill :: CombatType -> [EquippedModel] -> Int -> Model -> QQ
-probKill ct srcs 1     tgt = probOf (>= tgt^.model_wnd) (numWounds ct srcs tgt)
+probKill ct srcs 1     tgt = probOf (>= tgt^.model_wnd) (numWoundsMax ct srcs tgt (tgt^.model_wnd))
 probKill ct srcs ntgts tgt = probOf (>= ntgts)          (numSlainModelsInt ct srcs tgt)

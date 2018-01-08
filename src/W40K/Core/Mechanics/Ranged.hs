@@ -3,7 +3,7 @@ module W40K.Core.Mechanics.Ranged
   ( RngWeaponClass (..)
   , RngWeapon (..)
   , rw_shots, rw_str, rw_class, rw_autohit, rw_weapon, rw_melta
-  , rw_ap, rw_dmg, rw_mods, rw_name
+  , rw_ap, rw_dmg, rw_mods, rw_name, rw_points
   , null_rw
   ) where
 
@@ -41,6 +41,9 @@ rw_mods = rw_weapon.w_mods
 
 rw_name :: Lens' RngWeapon String
 rw_name = rw_weapon.w_name
+
+rw_points :: Lens' RngWeapon Int
+rw_points = rw_weapon.w_points
 
 null_rw :: RngWeapon
 null_rw = RngWeapon

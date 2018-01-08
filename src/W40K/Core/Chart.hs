@@ -29,6 +29,7 @@ import Debug.Trace
 
 import W40K.Core.Prob (Event(..), Prob, QQ, events, distribution, revDistribution)
 import W40K.Core.Mechanics
+import W40K.Core.Score
 
 
 moreColors :: [AlphaColour Double]
@@ -36,8 +37,8 @@ moreColors = cycle $ map opaque
   [black, blue, brown, chocolate, cyan, darkgreen, fuchsia, gold, gray,
    greenyellow, lightpink, olive, orange, red, yellow]
 
-modNamedEqUnit :: String -> Modifier -> [NamedEqUnit] -> [NamedEqUnit]
-modNamedEqUnit modName mod = map $ \(name, ct, squad) ->
+mapNamedEqUnit :: String -> ([EquippedModel] -> [EquippedModel]) -> [NamedEqUnit] -> [NamedEqUnit]
+mapNamedEqUnit modName mod = map $ \(name, ct, squad) ->
     (name ++ " (" ++ modName ++ ")", ct, mod squad)
 
 setCombatType :: CombatType -> [(String, [EquippedModel])] -> [NamedEqUnit]
@@ -55,11 +56,13 @@ type NamedEqUnit = (String, CombatType, [EquippedModel])
 data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
 
 data AnalysisFn tgt r where
-    NumWounds      :: ProbPlotType -> AnalysisFn Model        (Prob Int)
-    SlainModels    :: ProbPlotType -> AnalysisFn Model        (Prob QQ)
-    SlainModelsInt :: ProbPlotType -> AnalysisFn Model        (Prob Int)
-    ProbKill       ::                 AnalysisFn (Int, Model) QQ
-    ProbKillOne    ::                 AnalysisFn Model        QQ
+    NumWounds      :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
+    SlainModels    :: ProbPlotType              -> AnalysisFn Model        (Prob QQ)
+    SlainModelsInt :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
+    ProbKill       ::                              AnalysisFn (Int, Model) QQ
+    ProbKillOne    ::                              AnalysisFn Model        QQ
+    AbsoluteScore  :: AnalysisFn tgt (Prob Int) -> AnalysisFn tgt          QQ
+    RelativeScore  :: AnalysisFn tgt (Prob Int) -> AnalysisFn tgt          QQ
 
 data AnalysisConfig tgt r = AnalysisConfig AnalysisOrder (AnalysisFn tgt r) [NamedEqUnit] [tgt]
 
@@ -74,6 +77,8 @@ analysisFnName (SlainModels _)    = "# slain models"
 analysisFnName (SlainModelsInt _) = "# wholly slain models"
 analysisFnName ProbKill           = "" -- unused (grouped later in a bar plot)
 analysisFnName ProbKillOne        = "" -- unused (grouped later in a bar plot)
+analysisFnName (AbsoluteScore _)  = "" -- unused (grouped later in a bar plot)
+analysisFnName (RelativeScore _)  = "" -- unused (grouped later in a bar plot)
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.model_name)
@@ -81,13 +86,17 @@ analysisFnTgtName (SlainModels _)    = (^.model_name)
 analysisFnTgtName (SlainModelsInt _) = (^.model_name)
 analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.model_name
 analysisFnTgtName ProbKillOne        = (^.model_name)
+analysisFnTgtName (AbsoluteScore f)  = analysisFnTgtName f
+analysisFnTgtName (RelativeScore f)  = analysisFnTgtName f
 
 applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
-applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs
+applyAnalysisFn (NumWounds _)      ct srcs = \tgt -> numWoundsMax ct srcs tgt (tgt^.model_wnd)
 applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs
 applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs
 applyAnalysisFn ProbKill           ct srcs = uncurry $ probKill ct srcs
 applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1
+applyAnalysisFn (AbsoluteScore f)  ct srcs = absoluteScore . applyAnalysisFn f ct srcs
+applyAnalysisFn (RelativeScore f)  ct srcs = relativeScore srcs . applyAnalysisFn f ct srcs
 
 analyzeAllByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
 analyzeAllByAttacker fn squads tgts =
@@ -192,8 +201,8 @@ instance Given [String] => Chart.PlotValue BarPlotIndex where
     fromValue = coerce (Chart.fromValue @Chart.PlotIndex)
     autoAxis  = coerce (Chart.autoIndexAxis @Chart.PlotIndex given)
 
-percentAnalysisChart :: String -> AnalysisResults QQ -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
-percentAnalysisChart title results =
+analysisBarPlot :: String -> AnalysisResults QQ -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
+analysisBarPlot title results =
     let (titles,    groups) = unzip results
         titleIndexes        = map (BarPlotIndex . fst) (Chart.addIndexes titles)
 
@@ -244,10 +253,16 @@ analysisFnPlot fn results =
         SlainModels    ptype -> renderLayouts $ probAnalysisChart ptype results
         SlainModelsInt ptype -> renderLayouts $ probAnalysisChart ptype results
         ProbKill             ->
-            case percentAnalysisChart "kill probability (%)" results of
+            case analysisBarPlot "kill probability (%)" results of
               (Dict, layout) -> renderLayouts [layout]
         ProbKillOne          ->
-            case percentAnalysisChart "kill probability (%)" results of
+            case analysisBarPlot "kill probability (%)" results of
+              (Dict, layout) -> renderLayouts [layout]
+        AbsoluteScore _      ->
+            case analysisBarPlot "absolute score" results of
+              (Dict, layout) -> renderLayouts [layout]
+        RelativeScore _      ->
+            case analysisBarPlot "relative score" results of
               (Dict, layout) -> renderLayouts [layout]
 
 

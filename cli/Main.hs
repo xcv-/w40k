@@ -218,37 +218,32 @@ import GreyKnightTests
 --     genericInfantryCcwTest modifier tgt
 
 main = do
-    let tgts = [Eldar.warWalker, Eldar.waveSerpent False, Eldar.wraithlord, Eldar.wraithknight]
+    let tgts =
+            [ rhino
+            , Marines.stormraven
+            , Marines.landraider
+            , GK.sanctuary $ GK.gmndkModel
+            , GK.sanctuary $ GK.heedThePrognosticars $ GK.gmndkModel
+            ]
 
-    let srcs =
-             setCombatType Melee
-               [ ("5 hammerhanded falchion terminators", GK.hammerhanded $ GK.gkTerminatorSquad 5 GK.twoFalchions)
-               , ("5 hammerhanded halberd terminators",  GK.hammerhanded $ GK.gkTerminatorSquad 5 GK.halberd)
-               , ("4 hammerhanded falchion paladins",    GK.hammerhanded $ GK.paladinSquad 4 GK.twoFalchions)
-               , ("4 hammerhanded halberd paladins",     GK.hammerhanded $ GK.paladinSquad 4 GK.halberd)
-               ]
-             ++
-             setCombatType Melee
-               [ ("5 hammer terminators",                GK.gkTerminatorSquad 5 GK.hammer)
-               , ("4 hammer paladins",                   GK.paladinSquad 4 GK.hammer)
-               , ("hammer apothecary",                   [GK.gkApothecary GK.crys'yllixDestroyer])
-               , ("voldus",                              [GK.voldus])
-               ]
-             ++
-             setCombatType Melee
-               [ ("5 hammer terminators rerolling",      within GK.draigoAura $ GK.gkTerminatorSquad 5 GK.hammer)
-               , ("4 hammer paladins rerolling",         within GK.draigoAura $ GK.paladinSquad 4 GK.hammer)
-               ]
+    let srcs = setCombatType Ranged
+            [ ("exocrine",                                   with (Tyranids.kronosAdaptation . Tyranids.weaponBeast . Tyranids.symbioticTargeting)                            $ [Tyranids.exocrine])
+            , ("pathogenic slime exocrine",                  with (Tyranids.kronosAdaptation . Tyranids.weaponBeast . Tyranids.symbioticTargeting . Tyranids.pathogenicSlime) $ [Tyranids.exocrine])
+            , ("rupture cannon tyrannofex",                  with (Tyranids.kronosAdaptation . Tyranids.weaponBeast)                                                          $ [Tyranids.tyrannofex Tyranids.ruptureCannon])
+            , ("pathogenic slime rupture cannon tyrannofex", with (Tyranids.kronosAdaptation . Tyranids.weaponBeast . Tyranids.pathogenicSlime)                               $ [Tyranids.tyrannofex Tyranids.ruptureCannon])
+            , ("6 HG with IC",                               with (Tyranids.kronosAdaptation)                                                                                 $ Tyranids.hiveGuardSquad 6 Tyranids.impalerCannon)
+            , ("6 HG with IC + annihilation",                with (Tyranids.kronosAdaptation . Tyranids.singleMindedAnnihilation)                                             $ Tyranids.hiveGuardSquad 6 Tyranids.impalerCannon)
+            ]
 
-    putStrLn "gk melee av (prob kill)"
+    putStrLn "tyranid kronos artillery (prob kill)"
 
-    analysisToSvgFile "gk-melee-av-probkill.svg"
+    analysisToSvgFile "tyranid-artillery-probkill2.svg"
         [ analysisConfig' ByTarget ProbKillOne tgts srcs
         ]
 
-    putStrLn "gk melee av (# wounds)"
+    putStrLn "tyranid kronos artillery (# wounds)"
 
-    analysisToSvgFile "gk-melee-av.svg"
+    analysisToSvgFile "tyranid-artillery-av2.svg"
         [ analysisConfig' ByTarget (NumWounds RevDistributionPlot) tgts srcs
         ]
 

@@ -19,8 +19,8 @@ guillimanAura :: Aura
 guillimanAura = noAura & aura_any.mod_rrtohit   .~ RerollFailed
                        & aura_any.mod_rrtowound .~ RerollFailed
 
-telionAbility :: EquippedModel -> EquippedModel
-telionAbility = applyAura $ noAura & aura_any.mod_tohit .~ 1
+telionAbility :: Modifier
+telionAbility = em_model.model_mods.mod_tohit +~ 1
 
 -- MODELS
 
@@ -256,8 +256,8 @@ stormfang's rw = rename (stormraven's rw)
 eqStormfang :: RngWeapon -> [EquippedModel]
 eqStormfang cannonMode =
     stormfang's cannonMode
-      : two (stormfang's lascannon)
-      ++ two (stormfang's (twin multimelta))
+      : two [stormfang's lascannon]
+      ++ two [stormfang's (twin multimelta)]
 
 knightPaladin's :: CCWeapon -> RngWeapon -> EquippedModel
 knightPaladin's ccw rw = basicEquippedModel knightPaladin
@@ -276,25 +276,25 @@ sniperSquad n =
 meltaStormraven :: [EquippedModel]
 meltaStormraven =
     stormraven's (twin multimelta)
-    : two (stormraven's stormstrike)
+    : two [stormraven's stormstrike]
 
 fullAvStormraven :: [EquippedModel]
 fullAvStormraven =
     stormraven's (twin multimelta)
     : stormraven's (twin lascannon)
-    : two (stormraven's stormstrike)
+    : two [stormraven's stormstrike]
 
 assaultCannonStormraven :: [EquippedModel]
 assaultCannonStormraven =
     stormraven's (twin assaultCannon)
-    : two (stormraven's hurricaneBolter)
+    : two [stormraven's hurricaneBolter]
 
 godhammerLandraider :: [EquippedModel]
 godhammerLandraider =
-    two (landraider's (twin lascannon))
+    two [landraider's (twin lascannon)]
 
 fullAvGodhammerLandraider :: [EquippedModel]
 fullAvGodhammerLandraider =
     landraider's hunterkiller
     : landraider's multimelta
-    : two (landraider's (twin lascannon))
+    : two [landraider's (twin lascannon)]

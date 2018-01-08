@@ -10,22 +10,21 @@ import W40K.Core.Psychic
 
 -- TOOLS AND MODIFIERS
 
-rapidFiring :: [EquippedModel] -> [EquippedModel]
-rapidFiring = map $ \em ->
-    if em^.em_rw.rw_class == RapidFire then
-      em & em_rw.rw_shots %~ fmap (*2)
-    else
-      em
+rapidFireRange :: Modifier
+rapidFireRange em
+  | em^.em_rw.rw_class == RapidFire = em & em_rw.rw_shots %~ fmap (*2)
+  | otherwise                       = em
 
-closeEnough :: [EquippedModel] -> [EquippedModel]
-closeEnough = (rapidFiring .) $ map $ \em ->
-    if em^.em_rw.rw_melta then
-      em & em_rw.rw_dmg %~ \dmg -> liftA2 max dmg dmg
-    else
-      em
+meltaRange :: Modifier
+meltaRange em
+  | em^.em_rw.rw_melta = em & em_rw.rw_dmg %~ \dmg -> liftA2 max dmg dmg
+  | otherwise          = em
 
-moving :: [EquippedModel] -> [EquippedModel]
-moving = map $ em_model.model_moved .~ True
+closeEnoughRange :: Modifier
+closeEnoughRange = rapidFireRange . meltaRange
+
+moving :: Modifier
+moving = em_model.model_moved .~ True
 
 twice :: (Ord a, Num a) => Prob a -> Prob a
 twice p = sumProbs (replicate 2 p)
@@ -36,8 +35,8 @@ thrice p = sumProbs (replicate 3 p)
 twin :: RngWeapon -> RngWeapon
 twin = rw_shots %~ twice
 
-two :: a -> [a]
-two a = [a,a]
+two :: [a] -> [a]
+two a = a ++ a
 
 
 -- MODELS
@@ -65,28 +64,31 @@ meq = Model
   , _model_machineSpirit    = False
   , _model_fnp              = 7
   , _model_name             = "MEQ"
+  , _model_points           = -1
   }
 
 teq :: Model
 teq = meq
-  & model_att  .~ 2
-  & model_wnd  .~ 2
-  & model_ld   .~ 8
-  & model_save .~ 2
-  & model_inv  .~ 5
-  & model_name .~ "TEQ"
+  & model_att    .~ 2
+  & model_wnd    .~ 2
+  & model_ld     .~ 8
+  & model_save   .~ 2
+  & model_inv    .~ 5
+  & model_name   .~ "TEQ"
+  & model_points .~ -1
 
 rhino :: Model
 rhino = meq
-  & model_class .~ Vehicle
-  & model_ws    .~  6
-  & model_str   .~  6
-  & model_tgh   .~  7
-  & model_att   .~  3
-  & model_wnd   .~ 10
-  & model_ld    .~  8
-  & model_save  .~  3
-  & model_name  .~ "rhino"
+  & model_class  .~ Vehicle
+  & model_ws     .~  6
+  & model_str    .~  6
+  & model_tgh    .~  7
+  & model_att    .~  3
+  & model_wnd    .~ 10
+  & model_ld     .~  8
+  & model_save   .~  3
+  & model_name   .~ "rhino"
+  & model_points .~ -1
 
 
 -- PSYCHIC
@@ -117,13 +119,15 @@ boltPistol = bolter
 
 stormBolter :: RngWeapon
 stormBolter = bolter
-  & rw_shots .~ return 2
-  & rw_name  .~ "storm bolter"
+  & rw_shots  .~ return 2
+  & rw_name   .~ "storm bolter"
+  & rw_points .~ 2
 
 hurricaneBolter :: RngWeapon
 hurricaneBolter = bolter
-  & rw_shots .~ return 6
-  & rw_name  .~ "hurricane bolter"
+  & rw_shots  .~ return 6
+  & rw_name   .~ "hurricane bolter"
+  & rw_points .~ 10
 
 heavyBolter :: RngWeapon
 heavyBolter = bolter
@@ -147,8 +151,9 @@ lascannon = RngWeapon
   , _rw_autohit = False
   , _rw_melta   = False
   , _rw_weapon  = basicWeapon "lascannon"
-    & w_ap  .~ -3
-    & w_dmg .~ d6
+    & w_ap     .~ -3
+    & w_dmg    .~ d6
+    & w_points .~ 25
   }
 
 heavyPlasmaCannon :: RngWeapon
@@ -168,10 +173,11 @@ heavyPlasmaCannonSupercharge = heavyPlasmaCannon
 
 multimelta :: RngWeapon
 multimelta = lascannon
-  & rw_str   .~ 8
-  & rw_ap    .~ -4
-  & rw_name  .~ "multi-melta"
-  & rw_melta .~ True
+  & rw_str    .~ 8
+  & rw_ap     .~ -4
+  & rw_name   .~ "multi-melta"
+  & rw_melta  .~ True
+  & rw_points .~ 27
 
 krakMissile :: RngWeapon
 krakMissile = lascannon

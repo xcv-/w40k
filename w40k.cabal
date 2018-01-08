@@ -22,6 +22,7 @@ library
                        W40K.Core.Mechanics.Melee,
                        W40K.Core.Mechanics.Ranged,
                        W40K.Core.Psychic,
+                       W40K.Core.Score,
                        W40K.Data.Assassins,
                        W40K.Data.Common,
                        W40K.Data.Chaos,
