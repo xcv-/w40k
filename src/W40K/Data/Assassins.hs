@@ -43,4 +43,4 @@ exitusRifle = null_rw
 
 vindicare :: EquippedModel
 vindicare = basicEquippedModel vindicareModel
-  & em_rw .~ exitusRifle
+  & em_rw .~ [exitusRifle]

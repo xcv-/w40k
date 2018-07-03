@@ -35,18 +35,17 @@ andPsyOnslaught squads =
 godhammerAvTest :: [NamedEqUnit]
 godhammerAvTest = andAuras $
     setCombatType Ranged
-      [ ("LR lascannons",        Marines.godhammerLandraider)
-      , ("LR lascannons, melta", Marines.fullAvGodhammerLandraider)
+      [ ("LR lascannons",        [Marines.godhammerLandraider])
+      , ("LR lascannons, melta", [Marines.fullAvGodhammerLandraider])
       ]
 
 stormravenAvTest :: [NamedEqUnit]
 stormravenAvTest = andAuras $
     setCombatType Ranged
-      [
-        ("SR lascannons, melta",                with closeEnoughRange $ [Marines.stormraven's (twin multimelta), Marines.stormraven's (twin lascannon)])
-      , ("SR lascannons, melta, stormstrikes",  with closeEnoughRange Marines.fullAvStormraven)
-      , ("SR plasma, melta, stormstrikes",      with closeEnoughRange $ two [Marines.stormraven's Marines.stormstrike] ++ [Marines.stormraven's (twin heavyPlasmaCannon), Marines.stormraven's (twin multimelta)])
-      , ("SR melta, stormstrikes",              with closeEnoughRange Marines.meltaStormraven)
+      [ ("SR lascannons, melta",                with closeEnoughRange [Marines.stormravenWith $ [twin multimelta] ++ two [lascannon]])
+      , ("SR lascannons, melta, stormstrikes",  with closeEnoughRange [Marines.fullAvStormraven])
+      , ("SR plasma, melta, stormstrikes",      with closeEnoughRange [Marines.stormravenWith $ two [Marines.stormstrike] ++ two [twin heavyPlasmaCannon] ++ two [twin multimelta]])
+      , ("SR melta, stormstrikes",              with closeEnoughRange [Marines.meltaStormraven])
       ]
 
 hqCcAvTest :: (String, [EquippedModel]) -> [NamedEqUnit]
@@ -118,9 +117,9 @@ largePagkRngInfTest = andAuras $ andPsybolt $
 crusaderInfTest :: [NamedEqUnit]
 crusaderInfTest = andAuras $ andPsybolt $
     setCombatType Ranged
-      [ ("LR crusader (no melta)", with rapidFireRange $ Marines.landraider's (twin assaultCannon) : two [Marines.landraider's hurricaneBolter])
-      , ("LR crusader (HB only)",  with rapidFireRange $ two [Marines.landraider's hurricaneBolter])
-      , ("LR crusader (AC only)",  with rapidFireRange $ [Marines.landraider's (twin assaultCannon)])
+      [ ("LR crusader (no melta)", with rapidFireRange [Marines.landraiderCrusader])
+      , ("LR crusader (HB only)",  with rapidFireRange [Marines.landraiderWith (two [hurricaneBolter])])
+      , ("LR crusader (AC only)",  with rapidFireRange [Marines.landraiderWith [twin assaultCannon]])
       ]
 
 -- fullSmallGkInfTest :: [NamedEqUnit]

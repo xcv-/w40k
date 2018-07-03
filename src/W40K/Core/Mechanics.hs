@@ -242,7 +242,7 @@ slainModels ct tgt =
 data EquippedModel = EquippedModel
   { _em_model    :: Model
   , _em_ccw      :: CCWeapon
-  , _em_rw       :: RngWeapon
+  , _em_rw       :: [RngWeapon]
   }
 
 makeLenses ''EquippedModel
@@ -251,10 +251,10 @@ em_name :: Lens' EquippedModel String
 em_name = em_model.model_name
 
 em_points :: Getter EquippedModel Int
-em_points = to (\em -> em^.em_model.model_points + em^.em_ccw.as_weapon.w_points + em^.em_rw.as_weapon.w_points)
+em_points = to (\em -> em^.em_model.model_points + em^.em_ccw.as_weapon.w_points + sumOf (em_rw.traverse.as_weapon.w_points) em)
 
 basicEquippedModel :: Model -> EquippedModel
-basicEquippedModel model = EquippedModel model basic_ccw null_rw
+basicEquippedModel model = EquippedModel model basic_ccw []
 
 
 type Modifier = EquippedModel -> EquippedModel
@@ -281,20 +281,20 @@ twoHighest a b c
 numWounds :: CombatType -> [EquippedModel] -> Model -> Prob Int
 numWounds ct srcs tgt =
     case ct of
-      Melee  -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs] tgt
-      Ranged -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, src^.em_rw)  | src <- srcs] tgt
+      Melee  -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
+      Ranged -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
 
 numWoundsMax :: CombatType -> [EquippedModel] -> Model -> Int -> Prob Int
 numWoundsMax ct srcs tgt maxWounds =
     case ct of
-      Melee  -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs] tgt
-      Ranged -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, src^.em_rw)  | src <- srcs] tgt
+      Melee  -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
+      Ranged -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
 
 numSlainModels :: CombatType -> [EquippedModel] -> Model -> Prob QQ
 numSlainModels ct srcs tgt =
     case ct of
-      Melee  -> slainModels ct tgt |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs] tgt
-      Ranged -> slainModels ct tgt |=<<| woundingResult [(src^.em_model, src^.em_rw)  | src <- srcs] tgt
+      Melee  -> slainModels ct tgt |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
+      Ranged -> slainModels ct tgt |=<<| woundingResult [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
 
 numSlainModelsInt :: CombatType -> [EquippedModel] -> Model -> Prob Int
 numSlainModelsInt ct srcs tgt = fmap floor $ numSlainModels ct srcs tgt

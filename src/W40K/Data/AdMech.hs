@@ -41,7 +41,7 @@ eliminationVolley em =
 
 wrathOfMars :: Modifier
 wrathOfMars =
-    em_rw.rw_weapon.w_hooks.hook_wound .~ Just (RollHook 6 (WoundHookMortalWounds (return 1)))
+    em_rw.mapped.rw_weapon.w_hooks.hook_wound .~ Just (RollHook 6 (WoundHookMortalWounds (return 1)))
 
 
 data Protocol = Aegis | Protector | Conqueror
@@ -53,7 +53,7 @@ withProtocol proto em =
     case proto of
       Aegis     -> em & em_model.model_mods.mod_tosave +~ 1
       Conqueror -> em & em_model.model_att  *~ 2
-      Protector -> em & em_rw.rw_shots %~ fmap (*2)
+      Protector -> em & em_rw.mapped.rw_shots %~ fmap (*2)
   else
     em
 

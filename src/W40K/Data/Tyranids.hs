@@ -13,16 +13,16 @@ kronosAdaptation :: Modifier
 kronosAdaptation = em_model.model_rng_mods.mod_rrtohit <>~ RerollOnes
 
 pathogenicSlime :: Modifier
-pathogenicSlime = em_rw.rw_dmg %~ fmap (+1)
+pathogenicSlime = em_rw.mapped.rw_dmg %~ fmap (+1)
 
 symbioticTargeting :: Modifier
 symbioticTargeting = em_model.model_rng_mods.mod_tohit +~ 1
 
 singleMindedAnnihilation :: Modifier
-singleMindedAnnihilation = em_rw.rw_shots %~ fmap (*2)
+singleMindedAnnihilation = em_rw %~ \rws -> [rw | rw <- rws, _ <- [(), ()]]
 
 weaponBeast :: Modifier
-weaponBeast = em_rw.rw_shots %~ fmap (*2)
+weaponBeast = em_rw %~ \rws -> [rw | rw <- rws, _ <- [(), ()]]
 
 -- MODELS
 
@@ -128,16 +128,16 @@ powerfulLimbs = basic_ccw
 
 hiveGuard :: RngWeapon -> EquippedModel
 hiveGuard rw = basicEquippedModel hiveGuardModel
-  & em_rw .~ rw
+  & em_rw .~ [rw]
 
 exocrine :: EquippedModel
 exocrine = basicEquippedModel exocrineModel
-  & em_rw  .~ bioPlasmicCannon
+  & em_rw  .~ [bioPlasmicCannon]
   & em_ccw .~ powerfulLimbs
 
 tyrannofex :: RngWeapon -> EquippedModel
 tyrannofex rw = basicEquippedModel tyrannofexModel
-  & em_rw  .~ rw
+  & em_rw  .~ [rw]
   & em_ccw .~ powerfulLimbs
 
 

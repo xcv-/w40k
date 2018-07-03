@@ -2,7 +2,8 @@
 module W40K.Data.Common where
 
 import Prelude hiding (Functor(..), Monad(..))
-import Control.Lens ((&), (^.), (.~), (%~))
+import Data.List (intercalate)
+import Control.Lens ((&), (^.), (.~), (%~), (^..), mapped)
 
 import W40K.Core.Prob
 import W40K.Core.Mechanics
@@ -11,14 +12,18 @@ import W40K.Core.Psychic
 -- TOOLS AND MODIFIERS
 
 rapidFireRange :: Modifier
-rapidFireRange em
-  | em^.em_rw.rw_class == RapidFire = em & em_rw.rw_shots %~ fmap (*2)
-  | otherwise                       = em
+rapidFireRange = em_rw.mapped %~ rapidFireWeapon
+  where
+    rapidFireWeapon rw
+      | rw^.rw_class == RapidFire = rw & rw_shots %~ fmap (*2)
+      | otherwise                 = rw
 
 meltaRange :: Modifier
-meltaRange em
-  | em^.em_rw.rw_melta = em & em_rw.rw_dmg %~ \dmg -> liftA2 max dmg dmg
-  | otherwise          = em
+meltaRange = em_rw.mapped %~ meltaRangeWeapon
+  where
+    meltaRangeWeapon rw
+      | rw^.rw_melta = rw & rw_dmg %~ \dmg -> liftA2 max dmg dmg
+      | otherwise    = rw
 
 closeEnoughRange :: Modifier
 closeEnoughRange = rapidFireRange . meltaRange
@@ -37,6 +42,9 @@ twin = rw_shots %~ twice
 
 two :: [a] -> [a]
 two a = a ++ a
+
+weaponNames :: [RngWeapon] -> String
+weaponNames rw = intercalate "+" (rw^..traverse.rw_name)
 
 
 -- MODELS

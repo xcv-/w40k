@@ -34,7 +34,7 @@ draigoAura = noAura & aura_any <>~ draigoMods
 
 gkWithSpecialWeapon :: RngWeapon -> Modifier
 gkWithSpecialWeapon rw em = em
-  & em_rw  .~ rw
+  & em_rw  .~ [rw]
   & em_ccw .~ basic_ccw
 
 brotherhoodBanner :: Modifier
@@ -44,7 +44,7 @@ hammerhand :: Modifier
 hammerhand = em_model.model_cc_mods.mod_towound +~ 1
 
 psyboltAmmo :: Modifier
-psyboltAmmo = em_rw %~ applyPsybolt
+psyboltAmmo = em_rw.mapped %~ applyPsybolt
   where
     applyPsybolt rw
       | rw^.rw_name `elem` psyboltWeapons = rw & rw_ap -~ 1 & rw_str +~ 1
@@ -53,7 +53,7 @@ psyboltAmmo = em_rw %~ applyPsybolt
     psyboltWeapons = ["boltgun", "storm bolter", "hurricane bolter", "heavy bolter"]
 
 psyOnslaughtAmmo :: Modifier
-psyOnslaughtAmmo = em_rw %~ applyOnslaught
+psyOnslaughtAmmo = em_rw.mapped %~ applyOnslaught
   where
     applyOnslaught rw
       | rw^.rw_name `elem` onslaughtWeapons = rw & rw_ap -~ 1 & rw_str +~ 1
@@ -326,7 +326,7 @@ nemesisDoomglaive = nemesis_ccw
 gkEquippedModel :: Model -> CCWeapon -> EquippedModel
 gkEquippedModel m ccw = basicEquippedModel m
   & em_ccw .~ ccw
-  & em_rw  .~ stormBolter
+  & em_rw  .~ [stormBolter]
 
 
 greyKnight :: CCWeapon -> EquippedModel
@@ -337,7 +337,7 @@ greyKnightJusticar = gkEquippedModel (asJusticar greyKnightModel)
 
 purgator :: RngWeapon -> EquippedModel
 purgator rw = basicEquippedModel purgatorModel
-  & em_rw .~ rw
+  & em_rw .~ [rw]
 
 purgatorJusticar :: CCWeapon -> EquippedModel
 purgatorJusticar = gkEquippedModel (asJusticar purgatorModel)
@@ -362,7 +362,6 @@ paragon = gkEquippedModel paragonModel
 
 apothecary :: CCWeapon -> EquippedModel
 apothecary ccw = basicEquippedModel apothecaryModel
-  & em_rw  .~ null_rw
   & em_ccw .~ ccw
 
 brotherhoodChampion :: (RollMods -> RollMods) -> EquippedModel
@@ -388,7 +387,7 @@ draigo = gkEquippedModel draigoModel titansword
 
 doomglaiveDread :: EquippedModel
 doomglaiveDread = basicEquippedModel Marines.venDreadnought
-  & em_rw    .~ heavyPsycannon
+  & em_rw    .~ [stormBolter, heavyPsycannon]
   & em_ccw   .~ nemesisDoomglaive
   & em_name  .~ "doomglaive dreadnought"
 
@@ -409,13 +408,15 @@ specialWeaponPurifierSquad5 rw ccw =
 
 specialWeaponStrikeSquad5 :: RngWeapon -> CCWeapon -> [EquippedModel]
 specialWeaponStrikeSquad5 rng ccw =
-    (greyKnight ccw & em_rw .~ rng & em_ccw .~ basic_ccw)
+    (greyKnight ccw & em_rw  .~ [rng]
+                    & em_ccw .~ basic_ccw)
       : replicate 3 (greyKnight ccw)
       ++ [greyKnightJusticar ccw]
 
 specialWeaponStrikeSquad10 :: RngWeapon -> CCWeapon -> [EquippedModel]
 specialWeaponStrikeSquad10 rng ccw =
-    replicate 2 (greyKnight ccw & em_rw .~ rng & em_ccw .~ basic_ccw)
+    replicate 2 (greyKnight ccw & em_rw  .~ [rng]
+                                & em_ccw .~ basic_ccw)
       ++ replicate 7 (greyKnight ccw)
       ++ [greyKnightJusticar ccw]
 

@@ -79,13 +79,13 @@ infernoBoltPistol = boltPistol
 
 bolterRubricMarine :: EquippedModel
 bolterRubricMarine = basicEquippedModel rubricMarine
-  & em_rw .~ infernoBolter
+  & em_rw .~ [infernoBolter]
 
 aspiringSorcerer :: EquippedModel
 aspiringSorcerer = basicEquippedModel rubricMarine
   & em_model %~ (model_att +~ 1) . (model_ld +~ 1)
   & em_ccw   .~ forceSword
-  & em_rw    .~ boltPistol
+  & em_rw    .~ [boltPistol]
 
 
 -- SQUADS

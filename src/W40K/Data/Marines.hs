@@ -187,82 +187,85 @@ helfrostDestructorFocused = lascannon
 
 bolterTactical :: EquippedModel
 bolterTactical = basicEquippedModel meq
-  & em_rw   .~ bolter
+  & em_rw   .~ [bolter]
   & em_name .~ "tactical marine"
 
 intercessor :: EquippedModel
 intercessor = basicEquippedModel primaris
-  & em_rw    .~ (bolter & rw_ap .~ -1)
+  & em_rw    .~ [bolter & rw_ap .~ -1]
   & em_name  .~ "primaris intercessor"
 
 telion :: EquippedModel
 telion = basicEquippedModel scoutSargeant
   & em_model.model_bs  .~ 2
   & em_model.model_wnd .~ 4
-  & em_rw              .~ quietusRifle
+  & em_rw              .~ [quietusRifle]
   & em_name            .~ "sargeant telion"
 
-razorback's :: RngWeapon -> EquippedModel
-razorback's rw = basicEquippedModel razorback
+razorbackWith :: [RngWeapon] -> EquippedModel
+razorbackWith rw = basicEquippedModel razorback
   & em_rw    .~ rw
-  & em_name  .~ "razorback's " ++ rw^.rw_name
+  & em_name  .~ "razorback w/ " ++ weaponNames rw
 
-predator's :: RngWeapon -> EquippedModel
-predator's rw = basicEquippedModel predator
+predatorWith :: [RngWeapon] -> EquippedModel
+predatorWith rw = basicEquippedModel predator
   & em_rw    .~ rw
-  & em_name  .~ "predator's " ++ rw^.rw_name
+  & em_name  .~ "predator w/ " ++ weaponNames rw
 
-landraider's :: RngWeapon -> EquippedModel
-landraider's rw = basicEquippedModel landraider
+landraiderWith :: [RngWeapon] -> EquippedModel
+landraiderWith rw = basicEquippedModel landraider
   & em_rw    .~ rw
-  & em_name  .~ "landraider's " ++ rw^.rw_name
+  & em_name  .~ "landraider w/ " ++ weaponNames rw
 
-stormraven's :: RngWeapon -> EquippedModel
-stormraven's rw = basicEquippedModel stormraven
+stormravenWith :: [RngWeapon] -> EquippedModel
+stormravenWith rw = basicEquippedModel stormraven
   & em_rw    .~ rw
-  & em_name  .~ "stormraven's " ++ rw^.rw_name
+  & em_name  .~ "stormraven w/ " ++ weaponNames rw
 
-stormfang's :: RngWeapon -> EquippedModel
-stormfang's rw = rename (stormraven's rw)
+stormfangWith :: [RngWeapon] -> EquippedModel
+stormfangWith rw = rename (stormravenWith rw)
   where
-    rename = em_name .~ "stormfang gunship's " ++ rw^.rw_name
+    rename = em_name .~ "stormfang gunship w/ " ++ weaponNames rw
 
-eqStormfang :: RngWeapon -> [EquippedModel]
-eqStormfang cannonMode =
-    stormfang's cannonMode
-      : two [stormfang's lascannon]
-      ++ two [stormfang's (twin multimelta)]
-
+stormfangWithAvWith :: RngWeapon -> EquippedModel
+stormfangWithAvWith mainCannon =
+    stormfangWith ([mainCannon] ++ two [lascannon] ++ two [twin multimelta])
+    & em_name .~ "stormfang w/ LC+MM+" ++ (mainCannon^.rw_name)
 
 -- [EQUIPPED MODELS]
 
 sniperSquad :: Int -> [EquippedModel]
 sniperSquad n =
-    (basicEquippedModel scoutSargeant & em_rw .~ sniperRifle)
-    : replicate (n-1) (basicEquippedModel scout & em_rw .~ sniperRifle)
+    (basicEquippedModel scoutSargeant & em_rw .~ [sniperRifle])
+    : replicate (n-1) (basicEquippedModel scout & em_rw .~ [sniperRifle])
 
-meltaStormraven :: [EquippedModel]
+meltaStormraven :: EquippedModel
 meltaStormraven =
-    stormraven's (twin multimelta)
-    : two [stormraven's stormstrike]
+    stormravenWith ([twin multimelta] ++ two [stormstrike])
+    & em_name .~ "stormraven w/ MM+SS"
 
-fullAvStormraven :: [EquippedModel]
+fullAvStormraven :: EquippedModel
 fullAvStormraven =
-    stormraven's (twin multimelta)
-    : stormraven's (twin lascannon)
-    : two [stormraven's stormstrike]
+    stormravenWith ([twin multimelta] ++ two [lascannon] ++ two [stormstrike])
+    & em_name .~ "stormraven w/ MM+LC+SS"
 
-assaultCannonStormraven :: [EquippedModel]
+assaultCannonStormraven :: EquippedModel
 assaultCannonStormraven =
-    stormraven's (twin assaultCannon)
-    : two [stormraven's hurricaneBolter]
+    stormravenWith ([twin assaultCannon] ++ two [hurricaneBolter])
+    & em_name .~ "stormraven w/ AC+HB"
 
-godhammerLandraider :: [EquippedModel]
+godhammerLandraider :: EquippedModel
 godhammerLandraider =
-    two [landraider's (twin lascannon)]
+    landraiderWith (two [twin lascannon])
+    & em_name .~ "landraider w/ LC"
 
-fullAvGodhammerLandraider :: [EquippedModel]
+fullAvGodhammerLandraider :: EquippedModel
 fullAvGodhammerLandraider =
-    landraider's hunterkiller
-    : landraider's multimelta
-    : two [landraider's (twin lascannon)]
+    landraiderWith (two [twin lascannon] ++ [multimelta] ++ [hunterkiller])
+    & em_name .~ "landraider w/ LC+MM+HKM"
+
+landraiderCrusader :: EquippedModel
+landraiderCrusader =
+    landraiderWith (two [hurricaneBolter] ++ [twin assaultCannon])
+    & em_name .~ "landraider crusader"
+
