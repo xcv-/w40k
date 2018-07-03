@@ -126,26 +126,6 @@ landraider = rhino
   & model_machineSpirit .~ True
   & model_name          .~ "landraider"
 
-knightPaladin :: Model
-knightPaladin = meq
-  & model_class         .~ Vehicle
-  & model_str           .~ 8
-  & model_tgh           .~ 8
-  & model_wnd           .~ 24
-  & model_att           .~ 4
-  & model_ld            .~ 9
-  & model_rng_inv       .~ 5
-  & model_machineSpirit .~ True
-  & model_name          .~ "knight paladin"
-
-
--- CC WEAPONS
-
-titanicFeet :: CCWeapon
-titanicFeet = basic_ccw
-  & ccw_attBonus .~ Times 3
-  & ccw_ap       .~ -2
-  & ccw_dmg      .~ d3
 
 -- RANGED WEAPONS
 
@@ -202,12 +182,6 @@ helfrostDestructorFocused = lascannon
   & rw_dmg   .~ d6
   & rw_name  .~ "helfrost destructor (focused)"
 
-rapidFireBattleCannon :: RngWeapon
-rapidFireBattleCannon = predatorAutocannon
-  & rw_shots  .~ twice d6
-  & rw_str    .~ 8
-  & rw_ap     .~ -2
-  & rw_dmg    .~ d3
 
 -- EQUIPPED MODELS
 
@@ -258,12 +232,6 @@ eqStormfang cannonMode =
     stormfang's cannonMode
       : two [stormfang's lascannon]
       ++ two [stormfang's (twin multimelta)]
-
-knightPaladin's :: CCWeapon -> RngWeapon -> EquippedModel
-knightPaladin's ccw rw = basicEquippedModel knightPaladin
-  & em_rw    .~ rw
-  & em_ccw   .~ ccw
-  & em_name  .~ "knight paladin's " ++ ccw^.ccw_name ++ "/" ++ rw^.rw_name
 
 
 -- [EQUIPPED MODELS]

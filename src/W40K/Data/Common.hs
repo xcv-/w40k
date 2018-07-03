@@ -67,6 +67,16 @@ meq = Model
   , _model_points           = -1
   }
 
+geq :: Model
+geq = meq
+  & model_ws    .~ 4
+  & model_bs    .~ 4
+  & model_str   .~ 3
+  & model_tgh   .~ 3
+  & model_ld    .~ 6
+  & model_save  .~ 5
+  & model_name  .~ "GEQ"
+
 teq :: Model
 teq = meq
   & model_att    .~ 2
