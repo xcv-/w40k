@@ -129,6 +129,7 @@ data WoundHookEff
     | WoundHookExtraHits    !Int
     | WoundHookExtraWounds  !Int
     | WoundHookMortalWounds !(Prob Int)
+    | WoundHookMortalDamage !(Prob Int)
     | WoundHookModWeapon    !Weapon
   deriving (Eq, Ord)
 

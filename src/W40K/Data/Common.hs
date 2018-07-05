@@ -3,7 +3,7 @@ module W40K.Data.Common where
 
 import Prelude hiding (Functor(..), Monad(..))
 import Data.List (intercalate)
-import Control.Lens ((&), (^.), (.~), (%~), (^..), mapped)
+import Control.Lens
 
 import W40K.Core.Prob
 import W40K.Core.Mechanics
@@ -27,6 +27,14 @@ meltaRange = em_rw.mapped %~ meltaRangeWeapon
 
 closeEnoughRange :: Modifier
 closeEnoughRange = rapidFireRange . meltaRange
+
+splitAttacks :: Int -> CCWeapon -> EquippedModel -> [EquippedModel]
+splitAttacks natt ccw em
+  | (em^.em_model.model_att) >= natt = [ em & em_model.model_att -~ natt
+                                       , em & em_model.model_att .~ natt
+                                            & em_ccw             .~ ccw
+                                       ]
+  | otherwise                        = [em]
 
 moving :: Modifier
 moving = em_model.model_moved .~ True

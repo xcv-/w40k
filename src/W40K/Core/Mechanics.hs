@@ -119,6 +119,9 @@ unsavedWounds src w tgt = do
           WoundHookMortalWounds pmw -> do
             mw <- sumProbs (replicate nsuccesses pmw)
             return (MortalWounds mw, 0, 0, w^.as_weapon)
+          WoundHookMortalDamage pmw -> do
+            mw <- sumProbs (replicate nsuccesses pmw)
+            return (MortalWounds mw, -nsuccesses, 0, w^.as_weapon)
           WoundHookModWeapon w' -> do
             return (MortalWounds 0, 0, nsuccesses, w')
 

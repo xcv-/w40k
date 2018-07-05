@@ -57,6 +57,7 @@ data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
 
 data AnalysisFn tgt r where
     NumWounds      :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
+    NumWoundsMax   :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
     SlainModels    :: ProbPlotType              -> AnalysisFn Model        (Prob QQ)
     SlainModelsInt :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
     ProbKill       ::                              AnalysisFn (Int, Model) QQ
@@ -73,6 +74,7 @@ analysisConfig' order fn tgts srcs = AnalysisConfig order fn srcs tgts
 
 analysisFnName :: AnalysisFn tgt r -> String
 analysisFnName (NumWounds _)      = "# wounds"
+analysisFnName (NumWoundsMax _)   = "# wounds"
 analysisFnName (SlainModels _)    = "# slain models"
 analysisFnName (SlainModelsInt _) = "# wholly slain models"
 analysisFnName ProbKill           = "" -- unused (grouped later in a bar plot)
@@ -82,6 +84,7 @@ analysisFnName (RelativeScore _)  = "" -- unused (grouped later in a bar plot)
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.model_name)
+analysisFnTgtName (NumWoundsMax _)   = (^.model_name)
 analysisFnTgtName (SlainModels _)    = (^.model_name)
 analysisFnTgtName (SlainModelsInt _) = (^.model_name)
 analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.model_name
@@ -91,6 +94,7 @@ analysisFnTgtName (RelativeScore f)  = analysisFnTgtName f
 
 applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
 applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs
+applyAnalysisFn (NumWoundsMax _)   ct srcs = \tgt -> numWoundsMax ct srcs tgt (tgt^.model_wnd)
 applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs
 applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs
 applyAnalysisFn ProbKill           ct srcs = uncurry $ probKill ct srcs
@@ -250,6 +254,7 @@ analysisFnPlot fn results =
     fmap combinePlotsVert $
       case fn of
         NumWounds      ptype -> renderLayouts $ probAnalysisChart ptype results
+        NumWoundsMax   ptype -> renderLayouts $ probAnalysisChart ptype results
         SlainModels    ptype -> renderLayouts $ probAnalysisChart ptype results
         SlainModelsInt ptype -> renderLayouts $ probAnalysisChart ptype results
         ProbKill             ->
