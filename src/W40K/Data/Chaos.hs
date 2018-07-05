@@ -9,13 +9,22 @@ import W40K.Core.Mechanics
 import W40K.Data.Common
 
 
-allIsDust :: Model -> Model
-allIsDust = (model_save -~ 1) . (model_inv -~ 1)
+-- MODIFIERS
+
+diabolicStrength :: Modifier
+diabolicStrength = em_model %~ (model_str +~ 2) . (model_att +~ 1)
+
+prescience :: Modifier
+prescience = em_model.model_mods.mod_tohit +~ 1
+
+weaverOfFates :: Modifier
+weaverOfFates = em_model.model_inv %~ \inv -> max (inv-1) 3
+
 
 -- MODELS
 
-daemonPrince :: Model
-daemonPrince = meq
+daemonPrinceModel :: Model
+daemonPrinceModel = meq
   & model_class .~ Monster
   & model_ws    .~ 2
   & model_bs    .~ 2
@@ -28,67 +37,24 @@ daemonPrince = meq
   & model_inv   .~ 5
   & model_name  .~ "daemon prince"
 
-tzaangor :: Model
-tzaangor = meq
-  & model_bs   .~ 4
-  & model_ld   .~ 7
-  & model_save .~ nosave
-  & model_inv  .~ 5
-  & model_name .~ "tzaangor"
-
-chaosMarine :: Model
-chaosMarine = meq
+chaosMarineModel :: Model
+chaosMarineModel = meq
   & model_name .~ "chaos marine"
 
-chaosTerminator :: Model
-chaosTerminator = meq
+chaosTerminatorModel :: Model
+chaosTerminatorModel = meq
   & model_name .~ "chaos terminator"
 
-rubricMarine :: Model
-rubricMarine = meq
-  & model_inv  .~ 5
-  & model_name .~ "rubric marine"
-
-plagueMarine :: Model
-plagueMarine = meq
+plagueMarineModel :: Model
+plagueMarineModel = meq
   & model_tgh  .~ 5
   & model_fnp  .~ 5
   & model_name .~ "plague marine"
 
-blightlordTerminator :: Model
-blightlordTerminator = teq
+blightlordTerminatorModel :: Model
+blightlordTerminatorModel = teq
   & model_tgh  .~ 5
   & model_inv  .~ 4
   & model_fnp  .~ 5
   & model_name .~ "blightlord terminator"
 
--- RANGED WEAPONS
-
-infernoBolter :: RngWeapon
-infernoBolter = bolter
-  & rw_ap   .~ -2
-  & rw_name .~ "inferno boltgun"
-
-infernoBoltPistol :: RngWeapon
-infernoBoltPistol = boltPistol
-  & rw_ap .~ -2
-  & rw_name .~ "inferno bolt pistol"
-
-
--- EQUIPPED MODELS
-
-bolterRubricMarine :: EquippedModel
-bolterRubricMarine = basicEquippedModel rubricMarine
-  & em_rw .~ [infernoBolter]
-
-aspiringSorcerer :: EquippedModel
-aspiringSorcerer = basicEquippedModel rubricMarine
-  & em_model %~ (model_att +~ 1) . (model_ld +~ 1)
-  & em_ccw   .~ forceSword
-  & em_rw    .~ [boltPistol]
-
-
--- SQUADS
-
-rubricSquad :: Int -> [EquippedModel]
-rubricSquad n = aspiringSorcerer : replicate (n-1) bolterRubricMarine

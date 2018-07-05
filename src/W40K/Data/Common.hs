@@ -161,6 +161,14 @@ assaultCannon = heavyBolter
   & rw_str   .~ 6
   & rw_name  .~ "assault cannon"
 
+autocannon :: RngWeapon
+autocannon = heavyBolter
+  & rw_shots .~ return 2
+  & rw_str   .~ 7
+  & rw_ap    .~ -1
+  & rw_dmg   .~ return 2
+  & rw_name  .~ "autocannon"
+
 lascannon :: RngWeapon
 lascannon = RngWeapon
   { _rw_shots   = return 1

@@ -10,14 +10,16 @@ import W40K.Core.Mechanics
 import W40K.Core.Psychic
 
 import W40K.Data.Common
-import qualified W40K.Data.Assassins   as Assassins
-import qualified W40K.Data.Chaos       as Chaos
-import qualified W40K.Data.Eldar       as Eldar
-import qualified W40K.Data.GreyKnights as GK
-import qualified W40K.Data.Marines     as Marines
-import qualified W40K.Data.Necrons     as Necrons
-import qualified W40K.Data.Tau         as Tau
-import qualified W40K.Data.Tyranids    as Tyranids
+import qualified W40K.Data.AdMech       as AdMech
+import qualified W40K.Data.Assassins    as Assassins
+import qualified W40K.Data.Chaos        as Chaos
+import qualified W40K.Data.Eldar        as Eldar
+import qualified W40K.Data.GreyKnights  as GK
+import qualified W40K.Data.Marines      as Marines
+import qualified W40K.Data.Necrons      as Necrons
+import qualified W40K.Data.Tau          as Tau
+import qualified W40K.Data.ThousandSons as TSons
+import qualified W40K.Data.Tyranids     as Tyranids
 
 import GreyKnightTests
 
@@ -218,32 +220,54 @@ import GreyKnightTests
 --     genericInfantryCcwTest modifier tgt
 
 main = do
-    let tgts =
-            [ rhino
-            , Marines.stormraven
-            , Marines.landraider
-            , GK.sanctuary $ GK.gmndkModel
-            , GK.sanctuary $ GK.heedThePrognosticars $ GK.gmndkModel
-            ]
-
-    let srcs = setCombatType Ranged
-            [ ("exocrine",                                   with (Tyranids.kronosAdaptation . Tyranids.weaponBeast . Tyranids.symbioticTargeting)                            $ [Tyranids.exocrine])
-            , ("pathogenic slime exocrine",                  with (Tyranids.kronosAdaptation . Tyranids.weaponBeast . Tyranids.symbioticTargeting . Tyranids.pathogenicSlime) $ [Tyranids.exocrine])
-            , ("rupture cannon tyrannofex",                  with (Tyranids.kronosAdaptation . Tyranids.weaponBeast)                                                          $ [Tyranids.tyrannofex Tyranids.ruptureCannon])
-            , ("pathogenic slime rupture cannon tyrannofex", with (Tyranids.kronosAdaptation . Tyranids.weaponBeast . Tyranids.pathogenicSlime)                               $ [Tyranids.tyrannofex Tyranids.ruptureCannon])
-            , ("6 HG with IC",                               with (Tyranids.kronosAdaptation)                                                                                 $ Tyranids.hiveGuardSquad 6 Tyranids.impalerCannon)
-            , ("6 HG with IC + annihilation",                with (Tyranids.kronosAdaptation . Tyranids.singleMindedAnnihilation)                                             $ Tyranids.hiveGuardSquad 6 Tyranids.impalerCannon)
-            ]
-
-    putStrLn "tyranid kronos artillery (prob kill)"
-
-    analysisToSvgFile "tyranid-artillery-probkill2.svg"
-        [ analysisConfig' ByTarget ProbKillOne tgts srcs
+    analysisToSvgFile "/tmp/output.svg"
+        [ analysisConfig' ByTarget (NumWounds RevDistributionPlot) [TSons.magnus^.em_model, TSons.buffedMagnus^.em_model] $
+            setCombatType Melee
+              [ ("6 conqueror dragoons",                           with AdMech.conquerorDoctrinaImperative $
+                                                                      replicate 6 AdMech.taserLanceDragoon)
+              , ("6 conqueror + remorseless fist dragoons",        with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist) $
+                                                                      replicate 6 AdMech.taserLanceDragoon)
+              , ("6 conqueror + remorseless fist, ryza dragoons",  with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist . AdMech.ryzaDogma) $
+                                                                      replicate 6 AdMech.taserLanceDragoon)
+              ]
+            ++
+            setCombatType Ranged
+             [ ("3 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 3 AdMech.Protector)
+             , ("4 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 4 AdMech.Protector)
+             , ("3 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 3 AdMech.Protector)
+             , ("4 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 4 AdMech.Protector)
+             ]
         ]
 
-    putStrLn "tyranid kronos artillery (# wounds)"
+    -- let tgts =
+    --         [ TSons.magnus                           & em_model.model_name .~ "magnus"
+    --         , TSons.magnus & TSons.weaverOfFates     & em_model.model_name .~ "magnus 3++"
+    --         , TSons.magnus & TSons.glamourOfTzeentch & em_model.model_name .~ "magnus -1 to hit"
+    --         , TSons.magnus & TSons.weaverOfFates
+    --                        & TSons.glamourOfTzeentch & em_model.model_name .~ "magnus 3++, -1 to hit"
+    --         ]
+    --       & map (^.em_model)
 
-    analysisToSvgFile "tyranid-artillery-av2.svg"
-        [ analysisConfig' ByTarget (NumWounds RevDistributionPlot) tgts srcs
-        ]
+    -- let srcs = setCombatType Ranged
+    --         [ ("1 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 1 AdMech.Protector)
+    --         , ("2 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 2 AdMech.Protector)
+    --         , ("3 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 3 AdMech.Protector)
+    --         , ("4 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 4 AdMech.Protector)
+    --         , ("1 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 1 AdMech.Protector)
+    --         , ("2 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 2 AdMech.Protector)
+    --         , ("3 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 3 AdMech.Protector)
+    --         , ("4 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 4 AdMech.Protector)
+    --         ]
+
+    -- putStrLn "killing magnus (%)"
+
+    -- analysisToSvgFile "killing-magnus-prob.svg"
+    --     [ analysisConfig' ByTarget ProbKillOne tgts srcs
+    --     ]
+
+    -- putStrLn "killing magnus (#wounds)"
+
+    -- analysisToSvgFile "killing-magnus-distrib.svg"
+    --     [ analysisConfig' ByTarget (NumWounds RevDistributionPlot) tgts srcs
+    --     ]
 

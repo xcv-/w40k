@@ -34,7 +34,7 @@ instance Monoid IntMod where
     mempty = NoMod
     mappend = Dot
 
-data Reroll = NoReroll | RerollOnes | RerollFailed deriving (Eq, Ord)
+data Reroll = NoReroll | RerollOnes | RerollFailed | RerollAll deriving (Eq, Ord)
 
 instance Monoid Reroll where
     mempty = NoReroll
@@ -118,7 +118,7 @@ data RollHook eff = RollHook
 makeLenses ''RollHook
 
 data HitHookEff
-    = HitHookExtraHits !Int
+    = HitHookExtraHits    !Int
     | HitHookExtraAttacks !Int
   deriving (Eq, Ord)
 
@@ -288,6 +288,7 @@ roll rr d noModPass modPass = do
       case rr of
         RerollOnes   | k == 1            -> True
         RerollFailed | not (noModPass k) -> True
+        RerollAll                        -> True
         otherwise                        -> False
 
 requiredWoundRoll :: Weapon -> Int -> Model -> Int

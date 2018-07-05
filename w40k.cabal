@@ -33,6 +33,7 @@ library
                        W40K.Data.Marines,
                        W40K.Data.Necrons,
                        W40K.Data.Tau,
+                       W40K.Data.ThousandSons,
                        W40K.Data.Tyranids
   build-depends:       base >= 4.7 && < 5,
                        deepseq, parallel,

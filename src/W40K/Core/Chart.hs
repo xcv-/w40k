@@ -98,8 +98,8 @@ applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1
 applyAnalysisFn (AbsoluteScore f)  ct srcs = absoluteScore . applyAnalysisFn f ct srcs
 applyAnalysisFn (RelativeScore f)  ct srcs = relativeScore srcs . applyAnalysisFn f ct srcs
 
-analyzeAllByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
-analyzeAllByAttacker fn squads tgts =
+analyzeByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
+analyzeByAttacker fn squads tgts =
     [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
               | tgt <- tgts
               , let legend = legendTgt tgt ])
@@ -109,8 +109,8 @@ analyzeAllByAttacker fn squads tgts =
     titleAtt name ct = analysisFnName fn ++ " attacking with " ++ name ++ " " ++ titleCombatType ct
     legendTgt tgt = "vs " ++ analysisFnTgtName fn tgt
 
-analyzeAllByTarget :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
-analyzeAllByTarget fn squads tgts =
+analyzeByTarget :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
+analyzeByTarget fn squads tgts =
     [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
               | (squadName, ct, squad) <- squads
               , let legend = legendAtt squadName ct])
@@ -269,8 +269,8 @@ analysisFnPlot fn results =
 analyze :: forall tgt r. NFData r => AnalysisConfig tgt r -> IO (AnalysisResults r, Diagram SVG)
 analyze (AnalysisConfig order fn srcs tgts) =
     case order of
-      ByAttacker -> plotResults (analyzeAllByAttacker fn srcs tgts)
-      ByTarget   -> plotResults (analyzeAllByTarget   fn srcs tgts)
+      ByAttacker -> plotResults (analyzeByAttacker fn srcs tgts)
+      ByTarget   -> plotResults (analyzeByTarget   fn srcs tgts)
   where
     plotResults :: AnalysisResults r -> IO (AnalysisResults r, Diagram SVG)
     plotResults rs = do
