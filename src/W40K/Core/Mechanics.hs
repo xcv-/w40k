@@ -8,7 +8,7 @@ module W40K.Core.Mechanics
   , sumWounds
   , slainModels
   , EquippedModel (..)
-  , em_model, em_ccw, em_rw, em_name, em_points
+  , em_model, em_ccw, em_rw, em_name
   , basicEquippedModel
   , Modifier
   , with
@@ -247,11 +247,11 @@ data EquippedModel = EquippedModel
 
 makeLenses ''EquippedModel
 
+instance IsModel EquippedModel where
+    as_model = em_model
+
 em_name :: Lens' EquippedModel String
 em_name = em_model.model_name
-
-em_points :: Getter EquippedModel Int
-em_points = to (\em -> em^.em_model.model_points + em^.em_ccw.as_weapon.w_points + sumOf (em_rw.traverse.as_weapon.w_points) em)
 
 basicEquippedModel :: Model -> EquippedModel
 basicEquippedModel model = EquippedModel model basic_ccw []

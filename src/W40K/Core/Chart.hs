@@ -29,7 +29,6 @@ import Debug.Trace
 
 import W40K.Core.Prob (Event(..), Prob, QQ, events, distribution, revDistribution)
 import W40K.Core.Mechanics
-import W40K.Core.Score
 
 
 moreColors :: [AlphaColour Double]
@@ -61,8 +60,6 @@ data AnalysisFn tgt r where
     SlainModelsInt :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
     ProbKill       ::                              AnalysisFn (Int, Model) QQ
     ProbKillOne    ::                              AnalysisFn Model        QQ
-    AbsoluteScore  :: AnalysisFn tgt (Prob Int) -> AnalysisFn tgt          QQ
-    RelativeScore  :: AnalysisFn tgt (Prob Int) -> AnalysisFn tgt          QQ
 
 data AnalysisConfig tgt r = AnalysisConfig AnalysisOrder (AnalysisFn tgt r) [NamedEqUnit] [tgt]
 
@@ -77,8 +74,6 @@ analysisFnName (SlainModels _)    = "# slain models"
 analysisFnName (SlainModelsInt _) = "# wholly slain models"
 analysisFnName ProbKill           = "" -- unused (grouped later in a bar plot)
 analysisFnName ProbKillOne        = "" -- unused (grouped later in a bar plot)
-analysisFnName (AbsoluteScore _)  = "" -- unused (grouped later in a bar plot)
-analysisFnName (RelativeScore _)  = "" -- unused (grouped later in a bar plot)
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.model_name)
@@ -86,8 +81,6 @@ analysisFnTgtName (SlainModels _)    = (^.model_name)
 analysisFnTgtName (SlainModelsInt _) = (^.model_name)
 analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.model_name
 analysisFnTgtName ProbKillOne        = (^.model_name)
-analysisFnTgtName (AbsoluteScore f)  = analysisFnTgtName f
-analysisFnTgtName (RelativeScore f)  = analysisFnTgtName f
 
 applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
 applyAnalysisFn (NumWounds _)      ct srcs = \tgt -> numWoundsMax ct srcs tgt (tgt^.model_wnd)
@@ -95,8 +88,6 @@ applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs
 applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs
 applyAnalysisFn ProbKill           ct srcs = uncurry $ probKill ct srcs
 applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1
-applyAnalysisFn (AbsoluteScore f)  ct srcs = absoluteScore . applyAnalysisFn f ct srcs
-applyAnalysisFn (RelativeScore f)  ct srcs = relativeScore srcs . applyAnalysisFn f ct srcs
 
 analyzeByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
 analyzeByAttacker fn squads tgts =
@@ -257,12 +248,6 @@ analysisFnPlot fn results =
               (Dict, layout) -> renderLayouts [layout]
         ProbKillOne          ->
             case analysisBarPlot "kill probability (%)" results of
-              (Dict, layout) -> renderLayouts [layout]
-        AbsoluteScore _      ->
-            case analysisBarPlot "absolute score" results of
-              (Dict, layout) -> renderLayouts [layout]
-        RelativeScore _      ->
-            case analysisBarPlot "relative score" results of
               (Dict, layout) -> renderLayouts [layout]
 
 

@@ -158,7 +158,6 @@ data Weapon = Weapon
   , _w_wounding :: !WeaponWoundingMode
   , _w_hooks    :: !RollHooks
   , _w_name     :: !String
-  , _w_points   :: !Int
   }
   deriving (Eq, Ord)
 
@@ -175,7 +174,6 @@ basicWeapon name = Weapon
   , _w_wounding = UseStrength
   , _w_hooks    = noHooks
   , _w_name     = name
-  , _w_points   = 0
   }
 
 
@@ -222,11 +220,16 @@ data Model = Model
   , _model_machineSpirit    :: !Bool
   , _model_fnp              :: !Int
   , _model_name             :: !String
-  , _model_points           :: !Int
   }
   deriving Eq
 
 makeLenses ''Model
+
+class IsModel m where
+    as_model   :: Lens' m Model
+
+instance IsModel Model where
+    as_model = id
 
 model_inv :: Setter' Model Int
 model_inv f model =

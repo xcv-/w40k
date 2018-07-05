@@ -72,7 +72,6 @@ meq = Model
   , _model_machineSpirit    = False
   , _model_fnp              = 7
   , _model_name             = "MEQ"
-  , _model_points           = -1
   }
 
 geq :: Model
@@ -93,7 +92,6 @@ teq = meq
   & model_save   .~ 2
   & model_inv    .~ 5
   & model_name   .~ "TEQ"
-  & model_points .~ -1
 
 rhino :: Model
 rhino = meq
@@ -106,7 +104,6 @@ rhino = meq
   & model_ld     .~  8
   & model_save   .~  3
   & model_name   .~ "rhino"
-  & model_points .~ -1
 
 
 -- PSYCHIC
@@ -139,13 +136,11 @@ stormBolter :: RngWeapon
 stormBolter = bolter
   & rw_shots  .~ return 2
   & rw_name   .~ "storm bolter"
-  & rw_points .~ 2
 
 hurricaneBolter :: RngWeapon
 hurricaneBolter = bolter
   & rw_shots  .~ return 6
   & rw_name   .~ "hurricane bolter"
-  & rw_points .~ 10
 
 heavyBolter :: RngWeapon
 heavyBolter = bolter
@@ -179,7 +174,6 @@ lascannon = RngWeapon
   , _rw_weapon  = basicWeapon "lascannon"
     & w_ap     .~ -3
     & w_dmg    .~ d6
-    & w_points .~ 25
   }
 
 heavyPlasmaCannon :: RngWeapon
@@ -203,7 +197,6 @@ multimelta = lascannon
   & rw_ap     .~ -4
   & rw_name   .~ "multi-melta"
   & rw_melta  .~ True
-  & rw_points .~ 27
 
 krakMissile :: RngWeapon
 krakMissile = lascannon

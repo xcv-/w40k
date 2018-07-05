@@ -2,7 +2,7 @@
 module W40K.Core.Mechanics.Melee
   ( CCWeapon (..)
   , ccw_strMod, ccw_unwieldly, ccw_attBonus, ccw_weapon
-  , ccw_ap, ccw_dmg, ccw_mods, ccw_name, ccw_points
+  , ccw_ap, ccw_dmg, ccw_mods, ccw_name
   , basic_ccw
   ) where
 
@@ -34,9 +34,6 @@ ccw_mods = ccw_weapon.w_mods
 
 ccw_name :: Lens' CCWeapon String
 ccw_name = ccw_weapon.w_name
-
-ccw_points :: Lens' CCWeapon Int
-ccw_points = ccw_weapon.w_points
 
 basic_ccw :: CCWeapon
 basic_ccw = CCWeapon
