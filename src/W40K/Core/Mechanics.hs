@@ -182,8 +182,8 @@ foldWounds ct tgt f start totalUnsaved = do
         dmgSeq = concatMap (\(w, nwounded) -> replicate nwounded (w^.w_dmg)) wounds
                & map (dmgAfterFnp . dmgAfterDmgMods . dmgAfterQuantumShielding)
 
-    acc <- foldlProbs' f start dmgSeq
     mw' <- woundsAfterFnp mw
+    acc <- foldlProbs' f start dmgSeq
     let acc' = foldl' f acc (replicate mw' 1)
 
     return acc'

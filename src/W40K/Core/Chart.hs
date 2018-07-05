@@ -90,7 +90,7 @@ analysisFnTgtName (AbsoluteScore f)  = analysisFnTgtName f
 analysisFnTgtName (RelativeScore f)  = analysisFnTgtName f
 
 applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
-applyAnalysisFn (NumWounds _)      ct srcs = \tgt -> numWoundsMax ct srcs tgt (tgt^.model_wnd)
+applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs
 applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs
 applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs
 applyAnalysisFn ProbKill           ct srcs = uncurry $ probKill ct srcs

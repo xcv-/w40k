@@ -111,6 +111,13 @@ rhino = meq
 
 -- PSYCHIC
 
+asPsyker :: Model -> PsykerCasting
+asPsyker model = PsykerCasting
+    { _cast_bonus                  = NoMod
+    , _cast_usingPsychicChanneling = False
+    , _cast_psyker                 = model
+    }
+
 smite :: PsychicPower
 smite = PsychicPower
     { _power_castingValue = 5

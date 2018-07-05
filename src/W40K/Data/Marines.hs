@@ -239,10 +239,18 @@ sniperSquad n =
     (basicEquippedModel scoutSargeant & em_rw .~ [sniperRifle])
     : replicate (n-1) (basicEquippedModel scout & em_rw .~ [sniperRifle])
 
+laserRazorback :: EquippedModel
+laserRazorback = razorbackWith [twin lascannon]
+
 meltaStormraven :: EquippedModel
 meltaStormraven =
     stormravenWith ([twin multimelta] ++ two [stormstrike])
     & em_name .~ "stormraven w/ MM+SS"
+
+fullAvVenDreadnought :: EquippedModel
+fullAvVenDreadnought = basicEquippedModel venDreadnought
+    & em_rw   .~ [twin lascannon, krakMissile]
+    & em_name .~ "ven dreadnought w/ LC+ML"
 
 fullAvStormraven :: EquippedModel
 fullAvStormraven =

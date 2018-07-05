@@ -5,6 +5,7 @@ import Control.Lens
 
 import W40K.Core.Prob
 import W40K.Core.Mechanics
+import W40K.Core.Psychic
 
 import W40K.Data.Common
 import qualified W40K.Data.Chaos as Chaos
@@ -19,6 +20,14 @@ glamourOfTzeentch = em_model.model_mods.mod_tobehit -~ 1
 weaverOfFates :: Modifier
 weaverOfFates = Chaos.weaverOfFates
 
+gazeOfMagnus :: PsychicPower
+gazeOfMagnus = smite
+  & power_inflictMortalWounds .~ \_ _ cv ->
+      if cv >= 10 then two_d6 else d6
+  where
+    two_d6 = sumProbs [d6, d6]
+
+
 
 -- MODELS
 
@@ -31,6 +40,7 @@ exaltedSorcererModel = meq
   & model_ld   .~ 9
   & model_save .~ 3
   & model_inv  .~ 5
+  & model_mods.mod_rrtohit .~ RerollOnes
   & model_name .~ "exalted sorcerer"
 
 daemonPrinceModel :: Model
@@ -55,10 +65,13 @@ magnusModel :: Model
 magnusModel = daemonPrinceModel
   & model_str   .~ 8
   & model_tgh   .~ 7
-  & model_inv   .~ 4
   & model_att   .~ 7
   & model_wnd   .~ 18
   & model_name  .~ "magnus the red"
+
+magnusCasting :: PsykerCasting
+magnusCasting = asPsyker magnusModel
+  & cast_bonus .~ Add 2
 
 
 -- RANGED WEAPONS
@@ -94,7 +107,7 @@ aspiringSorcerer :: EquippedModel
 aspiringSorcerer = basicEquippedModel rubricModel
   & em_model %~ (model_att +~ 1) . (model_ld +~ 1)
   & em_ccw   .~ forceSword
-  & em_rw    .~ [boltPistol]
+  & em_rw    .~ [infernoBoltPistol]
 
 magnus :: EquippedModel
 magnus = basicEquippedModel magnusModel
