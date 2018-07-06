@@ -21,253 +21,58 @@ import qualified W40K.Data.Tau          as Tau
 import qualified W40K.Data.ThousandSons as TSons
 import qualified W40K.Data.Tyranids     as Tyranids
 
-import GreyKnightTests
+--import GreyKnightTests
 
--- testAV ct srcs tgt = analyzeInt $ numWounds ct srcs tgt
--- --testAV ct srcs tgt = print $ probKill ct srcs 1 tgt
---
--- testAI ct srcs tgt = analyze $ numSlainModels ct srcs tgt
--- --testAI ct srcs tgt = analyzeInt $ numWounds ct srcs tgt
---
--- testPredatorAV :: Modifier -> Model -> IO ()
--- testPredatorAV modifier tgt = do
---     putStrLn "Predator 4 lascannons (wounds)"
---     testAV Ranged (modifier $ two (predator's lascannon) ++ [predator's (twin lascannon)])   tgt
---     putStrLn "Predator 2 lascannons + autocannon (wounds)"
---     testAV Ranged (modifier $ two (predator's lascannon) ++ [predator's predatorAutocannon]) tgt
---
--- testGodhammerAV :: Modifier -> Model -> IO ()
--- testGodhammerAV modifier tgt = do
---     putStrLn "LR lascannons (wounds)"
---     testAV Ranged (modifier $ two (landraider's (twin lascannon)))                                   tgt
---     putStrLn "LR lascannons + far melta (wounds)"
---     testAV Ranged (modifier $ two (landraider's (twin lascannon)) ++ [landraider's farMultiMelta])   tgt
---     putStrLn "LR lascannons + cc melta (wounds)"
---     testAV Ranged (modifier $ two (landraider's (twin lascannon)) ++ [landraider's closeMultiMelta]) tgt
---
--- testStormravenAV :: Modifier -> Model -> IO ()
--- testStormravenAV modifier tgt = do
---     putStrLn "SR typhoon + stormstrikes (wounds)"
---     testAV Ranged (modifier $ two (stormraven's stormstrike) ++ [stormraven's typhoonKrak])                                    tgt
---     putStrLn "SR lascannons + stormstrikes (wounds)"
---     testAV Ranged (modifier $ two (stormraven's stormstrike) ++ [stormraven's (twin lascannon)])                               tgt
---     putStrLn "SR lascannons + typhoon + stormstrikes (wounds)"
---     testAV Ranged (modifier $ two (stormraven's stormstrike) ++ [stormraven's typhoonKrak, stormraven's (twin lascannon)])     tgt
---     putStrLn "SR lascannons + far melta + stormstrikes (wounds)"
---     testAV Ranged (modifier $ two (stormraven's stormstrike) ++ [stormraven's (twin farMultiMelta), stormraven's (twin lascannon)])   tgt
---     putStrLn "SR lascannons + cc melta + stormstrikes (wounds)"
---     testAV Ranged (modifier $ two (stormraven's stormstrike) ++ [stormraven's (twin closeMultiMelta), stormraven's (twin lascannon)]) tgt
---     putStrLn "SR far melta (wounds)"
---     testAV Ranged (modifier $ [stormraven's (twin farMultiMelta)]) tgt
---     putStrLn "SR far melta + stormstrikes (wounds)"
---     testAV Ranged (modifier $ two (stormraven's stormstrike) ++ [stormraven's (twin farMultiMelta)]) tgt
---     putStrLn "SR cc melta (wounds)"
---     testAV Ranged (modifier $ [stormraven's (twin closeMultiMelta)]) tgt
---     putStrLn "SR cc melta + stormstrikes (wounds)"
---     testAV Ranged (modifier $ two (stormraven's stormstrike) ++ [stormraven's (twin closeMultiMelta)]) tgt
---
--- testHammerPaladinsAV :: Modifier -> Model -> IO ()
--- testHammerPaladinsAV modifier tgt = do
---     putStrLn "3 hammers"
---     testAV Melee (modifier $ paladinSquad 3 hammer)                         tgt
---
---     putStrLn "3 hammers with draigo aura"
---     testAV Melee (modifier $ within draigoAura $
---                                paladinSquad 3 hammer)                       tgt
---
---     putStrLn "3 hammers with banner"
---     testAV Melee (modifier $ with brotherhoodBanner $
---                                paladinSquad 3 hammer)                       tgt
---
---     putStrLn "3 hammers with banner and draigo aura"
---     testAV Melee (modifier $ with brotherhoodBanner $ within draigoAura $
---                                paladinSquad 3 hammer)                       tgt
---
---     putStrLn "3 hammers + grand master"
---     testAV Melee (modifier $ within grandMasterAura $
---                                grandMaster hammer : paladinSquad 3 hammer)  tgt
---
---     putStrLn "3 hammers + grand master with banner"
---     testAV Melee (modifier $ with brotherhoodBanner $ within grandMasterAura $
---                                grandMaster hammer : paladinSquad 3 hammer)  tgt
---
---     putStrLn "3 hammers + apothecary + grand master with banner"
---     testAV Melee (modifier $ with brotherhoodBanner $ within grandMasterAura $
---                                grandMaster hammer : gkApothecary hammer : paladinSquad 3 hammer)  tgt
---
--- genericTestAV :: Modifier -> Model -> IO ()
--- genericTestAV modifier tgt = do
---     putStrLn "\n++ Hammer paladins"
---     testHammerPaladinsAV modifier tgt
---
---     putStrLn "\n++ Ranged with no auras"
---     testStormravenAV modifier tgt
---     testGodhammerAV  modifier tgt
---
---     putStrLn "\n++ Ranged with grand master aura"
---     testStormravenAV (modifier . within grandMasterAura) tgt
---     testGodhammerAV  (modifier . within grandMasterAura) tgt
---
---     putStrLn "\n++ Ranged with draigo aura"
---     testStormravenAV (modifier . within draigoAura) tgt
---     testGodhammerAV  (modifier . within draigoAura) tgt
---
--- primarisTestAV :: IO ()
--- primarisTestAV = do
---     putStrLn "\n+++ vs Redemptor"
---     genericTestAV id redemptorDreadnought
---     putStrLn "\n+++ vs Land Raider"
---     genericTestAV id landraider
---
---
--- testGkRangedWeapons :: Modifier -> Model -> IO ()
--- testGkRangedWeapons modifier tgt = do
---     putStrLn "5 strikes rapid-firing bolters"
---     testAI Ranged (modifier $ rapidFiring $ strikeSquad 5 forceSword)                        tgt
---     putStrLn "5 strikes rapid-firing bolters and a psilencer"
---     testAI Ranged (modifier $ rapidFiring $ specialWeaponStrikeSquad5 psilencer forceSword)  tgt
---     putStrLn "5 strikes rapid-firing bolters and a psycannon"
---     testAI Ranged (modifier $ rapidFiring $ specialWeaponStrikeSquad5 psycannon forceSword)  tgt
---     putStrLn "10 strikes rapid-firing bolters"
---     testAI Ranged (modifier $ rapidFiring $ strikeSquad 10 forceSword)                       tgt
---     putStrLn "10 strikes rapid-firing bolters and a psilencer"
---     testAI Ranged (modifier $ rapidFiring $ specialWeaponStrikeSquad10 psilencer forceSword) tgt
---     putStrLn "10 strikes rapid-firing bolters and a psycannon"
---     testAI Ranged (modifier $ rapidFiring $ specialWeaponStrikeSquad10 psycannon forceSword) tgt
---     putStrLn "4 purgator psilencer + storm bolter"
---     testAI Ranged (modifier $ purgatorSquad psilencer)                                       tgt
---     putStrLn "4 purgator incinerator + storm bolter"
---     testAI Ranged (modifier $ purgatorSquad incinerator)                                     tgt
---     putStrLn "4 purgator psycannon + storm bolter"
---     testAI Ranged (modifier $ purgatorSquad psycannon)                                       tgt
---
--- testGkCcw :: Modifier -> Model -> IO ()
--- testGkCcw modifier tgt = do
---     putStrLn "5 strike swords"
---     testAI Melee (modifier $ strikeSquad 5 forceSword)   tgt
---     putStrLn "5 strike halberds"
---     testAI Melee (modifier $ strikeSquad 5 halberd)      tgt
---     putStrLn "5 strike falchions"
---     testAI Melee (modifier $ strikeSquad 5 twoFalchions) tgt
---     putStrLn "5 strike hammer"
---     testAI Melee (modifier $ strikeSquad 5 hammer)       tgt
---
--- testGktCcw :: Modifier -> Model -> IO ()
--- testGktCcw modifier tgt = do
---     putStrLn "5 GKT swords"
---     testAI Melee (modifier $ gkTerminatorSquad 5 forceSword)   tgt
---     putStrLn "5 GKT halberds"
---     testAI Melee (modifier $ gkTerminatorSquad 5 halberd)      tgt
---     putStrLn "5 GKT falchions"
---     testAI Melee (modifier $ gkTerminatorSquad 5 twoFalchions) tgt
---     putStrLn "5 GKT hammer"
---     testAI Melee (modifier $ gkTerminatorSquad 5 hammer)       tgt
---
--- testPaladinCcw :: Modifier -> Model -> IO ()
--- testPaladinCcw modifier tgt = do
---     putStrLn "3 paladin swords"
---     testAI Melee (modifier $ paladinSquad 3 forceSword)   tgt
---     putStrLn "3 paladin halberds"
---     testAI Melee (modifier $ paladinSquad 3 halberd)      tgt
---     putStrLn "3 paladin falchions"
---     testAI Melee (modifier $ paladinSquad 3 twoFalchions) tgt
---     putStrLn "3 paladin hammer"
---     testAI Melee (modifier $ paladinSquad 3 hammer)       tgt
---
--- genericInfantryRangedTest :: Modifier -> Model -> IO ()
--- genericInfantryRangedTest modifier tgt = do
---     putStrLn "\n++ Ranged moving with no auras"
---     testGkRangedWeapons modifier                                     tgt
---     putStrLn "\n++ Ranged moving with grand master"
---     testGkRangedWeapons (within grandMasterAura . moving . modifier) tgt
---     putStrLn "\n++ Ranged moving with draigo"
---     testGkRangedWeapons (within draigoAura . moving . modifier)      tgt
---
---     putStrLn "\n++ Ranged moving with no auras and psybolt ammo"
---     testGkRangedWeapons (with psyboltAmmo . moving . modifier)                          tgt
---     putStrLn "\n++ Ranged moving with grand master and psybolt ammo"
---     testGkRangedWeapons (with psyboltAmmo . within grandMasterAura . moving . modifier) tgt
---     putStrLn "\n++ Ranged moving with draigo and psybolt ammo"
---     testGkRangedWeapons (with psyboltAmmo . within draigoAura . moving . modifier)      tgt
---
---     putStrLn "\n++ Ranged moving with no auras and psychic onslaught"
---     testGkRangedWeapons (with psyOnslaughtAmmo . moving . modifier)                          tgt
---     putStrLn "\n++ Ranged moving with grand master and psychic onslaught"
---     testGkRangedWeapons (with psyOnslaughtAmmo . within grandMasterAura . moving . modifier) tgt
---     putStrLn "\n++ Ranged moving with draigo and psychic onslaught"
---     testGkRangedWeapons (with psyOnslaughtAmmo . within draigoAura . moving . modifier)      tgt
---
--- genericInfantryCcwTest :: Modifier -> Model -> IO ()
--- genericInfantryCcwTest modifier tgt = do
---     putStrLn "\n++ CCW with banner"
---     testGkCcw (with brotherhoodBanner . modifier) tgt
---     testGktCcw (with brotherhoodBanner . modifier) tgt
---     testPaladinCcw (with brotherhoodBanner . modifier) tgt
---
---     putStrLn "\n++ CCW with grand master aura"
---     testGkCcw (within grandMasterAura . modifier) tgt
---     testGktCcw (within grandMasterAura . modifier) tgt
---     testPaladinCcw (within grandMasterAura . modifier) tgt
---
---     putStrLn "\n++ CCW with draigo aura"
---     testGkCcw (within draigoAura . modifier) tgt
---     testGktCcw (within draigoAura . modifier) tgt
---     testPaladinCcw (within draigoAura . modifier) tgt
---
--- genericInfantryTest :: Modifier -> Model -> IO ()
--- genericInfantryTest modifier tgt = do
---     genericInfantryRangedTest modifier tgt
---     genericInfantryCcwTest modifier tgt
 
 main = do
+    let tgts = [AdMech.radSaturation TSons.tzaangorModel, TSons.tzaangorModel]
+
     analysisToSvgFile "/tmp/output.svg"
-        [ analysisConfig' ByTarget (NumWounds RevDistributionPlot) [TSons.magnus^.em_model, TSons.buffedMagnus^.em_model] $
-            setCombatType Melee
-              [ ("6 conqueror dragoons",                           with AdMech.conquerorDoctrinaImperative $
-                                                                      replicate 6 AdMech.taserLanceDragoon)
-              , ("6 conqueror + remorseless fist dragoons",        with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist) $
-                                                                      replicate 6 AdMech.taserLanceDragoon)
-              , ("6 conqueror + remorseless fist, ryza dragoons",  with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist . AdMech.ryzaDogma) $
-                                                                      replicate 6 AdMech.taserLanceDragoon)
-              ]
-            ++
-            setCombatType Ranged
-             [ ("3 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 3 AdMech.Protector)
-             , ("4 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 4 AdMech.Protector)
-             , ("3 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 3 AdMech.Protector)
-             , ("4 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 4 AdMech.Protector)
-             ]
-        ]
-
-    -- let tgts =
-    --         [ TSons.magnus                           & em_model.model_name .~ "magnus"
-    --         , TSons.magnus & TSons.weaverOfFates     & em_model.model_name .~ "magnus 3++"
-    --         , TSons.magnus & TSons.glamourOfTzeentch & em_model.model_name .~ "magnus -1 to hit"
-    --         , TSons.magnus & TSons.weaverOfFates
-    --                        & TSons.glamourOfTzeentch & em_model.model_name .~ "magnus 3++, -1 to hit"
-    --         ]
-    --       & map (^.em_model)
-
-    -- let srcs = setCombatType Ranged
-    --         [ ("1 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 1 AdMech.Protector)
-    --         , ("2 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 2 AdMech.Protector)
-    --         , ("3 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 3 AdMech.Protector)
-    --         , ("4 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 4 AdMech.Protector)
-    --         , ("1 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 1 AdMech.Protector)
-    --         , ("2 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 2 AdMech.Protector)
-    --         , ("3 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 3 AdMech.Protector)
-    --         , ("4 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 4 AdMech.Protector)
-    --         ]
-
-    -- putStrLn "killing magnus (%)"
-
-    -- analysisToSvgFile "killing-magnus-prob.svg"
-    --     [ analysisConfig' ByTarget ProbKillOne tgts srcs
-    --     ]
-
-    -- putStrLn "killing magnus (#wounds)"
-
-    -- analysisToSvgFile "killing-magnus-distrib.svg"
-    --     [ analysisConfig' ByTarget (NumWounds RevDistributionPlot) tgts srcs
-    --     ]
-
+      [ analysisConfig' ByTarget (SlainModels RevDistributionPlot) tgts $
+          setCombatType Melee
+            [ ("5 conqueror + machine might taser infiltrators",        with (AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                                                                             (AdMech.taserGoadInfiltrators 5))
+            , ("5 conqueror + remorseless fist taser infiltrators",     with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                                                                             (AdMech.taserGoadInfiltrators 5))
+            , ("5 conqueror + machine might blades ruststakers",        with (AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                                                                             (AdMech.bladesRuststalkers 5))
+            , ("5 conqueror + remorseless fist blades ruststakers",     with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                                                                             (AdMech.bladesRuststalkers 5))
+            , ("5 conqueror + machine might razor+claw ruststakers",    with (AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                                                                             (AdMech.razorClawRuststalkers 5))
+            , ("5 conqueror + remorseless fist razor+claw ruststakers", with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                                                                             (AdMech.razorClawRuststalkers 5))
+            ]
+      , analysisConfig' ByTarget (SlainModels RevDistributionPlot) tgts $
+          setCombatType Melee
+            [ ("5 ryza conqueror + machine might taser infiltrators",        with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                                                                                  (AdMech.taserGoadInfiltrators 5))
+            , ("5 ryza conqueror + remorseless fist taser infiltrators",     with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                                                                                  (AdMech.taserGoadInfiltrators 5))
+            , ("5 ryza conqueror + machine might blades ruststakers",        with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                                                                                  (AdMech.bladesRuststalkers 5))
+            , ("5 ryza conqueror + remorseless fist blades ruststakers",     with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                                                                                  (AdMech.bladesRuststalkers 5))
+            , ("5 ryza conqueror + machine might razor+claw ruststakers",    with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                                                                                  (AdMech.razorClawRuststalkers 5))
+            , ("5 ryza conqueror + remorseless fist razor+claw ruststakers", with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                                                                             (AdMech.razorClawRuststalkers 5))
+            ]
+      ]
+        -- [ analysisConfig' ByTarget (NumWoundsMax RevDistributionPlot) [TSons.magnus^.em_model, TSons.buffedMagnus^.em_model] $
+        --     setCombatType Melee
+        --       [ ("6 conqueror dragoons",                           with AdMech.conquerorDoctrinaImperative $
+        --                                                               replicate 6 AdMech.taserLanceDragoon)
+        --       , ("6 conqueror + remorseless fist dragoons",        with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist) $
+        --                                                               replicate 6 AdMech.taserLanceDragoon)
+        --       , ("6 conqueror + remorseless fist, ryza dragoons",  with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist . AdMech.ryzaDogma) $
+        --                                                               replicate 6 AdMech.taserLanceDragoon)
+        --       ]
+        --     ++
+        --     setCombatType Ranged
+        --      [ ("3 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 3 AdMech.Protector)
+        --      , ("4 mars dakkabots + WoM",         within AdMech.cawlAura $ with AdMech.wrathOfMars $ AdMech.dakkabots 4 AdMech.Protector)
+        --      , ("3 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 3 AdMech.Protector)
+        --      , ("4 mars dakkabots + WoM + EV",    within AdMech.cawlAura $ with (AdMech.eliminationVolley . AdMech.wrathOfMars) $ AdMech.dakkabots 4 AdMech.Protector)
+        --      ]
+        -- ]

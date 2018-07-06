@@ -19,7 +19,6 @@ data PsykerCasting = PsykerCasting
     { _cast_bonus                  :: IntMod
     , _cast_usingPsychicChanneling :: Bool
     , _cast_psyker                 :: Model
-    , _cast_power                  :: PsychicPower
     }
 
 makeLenses ''PsykerCasting
@@ -32,8 +31,25 @@ data PsykerDenying = PsykerDenying
 makeLenses ''PsykerDenying
 
 
-denyPsychic :: PsykerDenying -> Int -> Prob Bool
-denyPsychic deny cv = do
+psychicTest :: PsykerCasting -> PsychicPower -> Prob (Maybe Int)
+psychicTest caster power = do
+    (a, b) <- if caster^.cast_usingPsychicChanneling then
+                  liftA3 twoHighest d6 d6 d6
+              else
+                  liftA2 (,) d6 d6
+
+    let minCV = power^.power_castingValue
+        cv    = applyIntMod (caster^.cast_bonus) (a + b)
+
+    case (a, b) of
+        (1, 1) -> return Nothing
+        (6, 6) -> return Nothing
+        (a, b)
+          | cv < minCV -> return Nothing
+          | otherwise  -> return (Just cv)
+
+denyTest :: PsykerDenying -> Int -> Prob Bool
+denyTest deny cv = do
     (a, b) <- if deny^.deny_usingAegis then
                   liftA3 twoHighest d6 d6 d6
               else
@@ -42,35 +58,28 @@ denyPsychic deny cv = do
     let denyV = applyIntMod (deny^.deny_bonus) (a + b)
     return (denyV > cv)
 
-castPsychic :: PsykerCasting -> Maybe PsykerDenying -> Model -> Prob Int
-castPsychic cast mdeny tgt = do
-    (a, b) <- if cast^.cast_usingPsychicChanneling then
-                  liftA3 twoHighest d6 d6 d6
-              else
-                  liftA2 (,) d6 d6
+manifestPower :: PsykerCasting -> PsychicPower -> Maybe PsykerDenying -> Prob (Maybe Int)
+manifestPower caster power Nothing       = psychicTest caster power
+manifestPower caster power (Just deny) = do
+    mcv <- psychicTest caster power
 
-    let minCV = cast^.cast_power.power_castingValue
-        cv    = applyIntMod (cast^.cast_bonus) (a + b)
+    case mcv of
+        Nothing -> return Nothing
+        Just cv -> do
+            denied <- denyTest deny cv
+            return (if denied then Nothing else Just cv)
 
-    case (a, b) of
-        (1, 1) -> return 0
-        (6, 6) -> return 0
-        (a, b)
-          | cv < minCV -> return 0
-          | otherwise  ->
-              case mdeny of
-                Nothing ->
-                    (cast^.cast_power.power_inflictMortalWounds) (cast^.cast_psyker) tgt cv
-                Just deny -> do
-                    denied <- denyPsychic deny cv
-                    if denied then
-                        return 0
-                    else
-                        (cast^.cast_power.power_inflictMortalWounds) (cast^.cast_psyker) tgt cv
 
-castPsychics :: [(PsykerCasting, Maybe PsykerDenying)] -> Model -> Prob Int
+castPsychic :: PsykerCasting -> PsychicPower -> Maybe PsykerDenying -> Model -> Prob Int
+castPsychic caster power mdeny tgt = do
+    mcv <- manifestPower caster power mdeny
+    case mcv of
+        Nothing -> return 0
+        Just cv -> (power^.power_inflictMortalWounds) (caster^.cast_psyker) tgt cv
+
+castPsychics :: [(PsykerCasting, PsychicPower, Maybe PsykerDenying)] -> Model -> Prob Int
 castPsychics psykers tgt =
     let mortalWounds = map applyCast psykers
     in  sumProbs mortalWounds
   where
-    applyCast (cast, deny) = castPsychic cast deny tgt
+    applyCast (caster, power, deny) = castPsychic caster power deny tgt

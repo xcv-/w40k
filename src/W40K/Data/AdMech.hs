@@ -36,7 +36,7 @@ ryzaDogma :: Modifier
 ryzaDogma = em_model.model_cc_mods.mod_rrtowound .~ RerollOnes
 
 
--- STRATAGEMS
+-- STRATAGEMS & ABILITIES
 
 dataTether :: Modifier
 dataTether = em_model.model_name <>~ " (data-tether)"
@@ -85,6 +85,9 @@ withProtocol proto em =
       Protector -> em & em_rw.mapped.rw_shots %~ fmap (*2)
   else
     em
+
+radSaturation :: Model -> Model
+radSaturation = (model_tgh -~ 1) . (model_name <>~ " (rad-saturation)")
 
 
 -- MODELS
@@ -212,6 +215,17 @@ transuranicArquebus = lascannon
   & rw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalWounds (return 1))
   & rw_name     .~ "transuranic arquebus"
 
+flechetteBlaster :: RngWeapon
+flechetteBlaster = boltPistol
+  & rw_shots    .~ return 5
+  & rw_str      .~ 3
+  & rw_name     .~ "flechette blaster"
+
+stubcarbine :: RngWeapon
+stubcarbine = boltPistol
+  & rw_shots    .~ return 3
+  & rw_name     .~ "stubcarbine"
+
 heavyPhosphorBlaster :: RngWeapon
 heavyPhosphorBlaster = heavyBolter
   & rw_str      .~ 6
@@ -264,6 +278,29 @@ neutronLaser = lascannon
 
 -- CC WEAPONS
 
+transonicRazor :: CCWeapon
+transonicRazor = basic_ccw
+  & ccw_name   .~ "transonic razor"
+  & ccw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalDamage (return 1))
+
+transonicBlades :: CCWeapon
+transonicBlades = basic_ccw
+  & ccw_strMod .~ Add 1
+  & ccw_name   .~ "transonic blades"
+  & ccw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalDamage (return 1))
+
+chordClaw :: CCWeapon
+chordClaw = basic_ccw
+  & ccw_dmg    .~ d3
+  & ccw_name   .~ "chord claw"
+  & ccw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalDamage d3)
+
+taserGoad :: CCWeapon
+taserGoad = basic_ccw
+  & ccw_strMod .~ Add 2
+  & ccw_name   .~ "taser goad"
+  & ccw_weapon.w_hooks.hook_hit ?~ RollHook 6 (HitHookExtraHits 2)
+
 taserLance :: CCWeapon
 taserLance = basic_ccw
   & ccw_strMod .~ Add 3
@@ -284,6 +321,29 @@ vanguardWith :: RngWeapon -> EquippedModel
 vanguardWith rw = basicEquippedModel vanguardModel
   & em_rw    .~ [rw]
   & em_name  .~ "vanguard w/ " ++ (rw^.rw_name)
+
+bladesRuststalker :: EquippedModel
+bladesRuststalker = basicEquippedModel ruststalkerModel
+  & em_ccw    .~ transonicBlades
+  & em_name   .~ "ruststalker w/transonic blades"
+
+razorClawRuststalker :: [EquippedModel]
+razorClawRuststalker = basicEquippedModel ruststalkerModel
+  & em_ccw    .~ transonicRazor
+  & em_name   .~ "ruststalker w/transonic razor+claw"
+  & splitAttacks 1 chordClaw
+
+taserGoadInfiltrator :: EquippedModel
+taserGoadInfiltrator = basicEquippedModel infiltratorModel
+  & em_rw     .~ [flechetteBlaster]
+  & em_ccw    .~ taserGoad
+  & em_name   .~ "taser goad infiltrator"
+
+powerSwordInfiltrator :: EquippedModel
+powerSwordInfiltrator = basicEquippedModel infiltratorModel
+  & em_rw     .~ [stubcarbine]
+  & em_ccw    .~ powerSword
+  & em_name   .~ "power sword infiltrator"
 
 taserLanceDragoon :: EquippedModel
 taserLanceDragoon = basicEquippedModel dragoonModel
@@ -331,3 +391,28 @@ vanguardSquad n specialRw =
       : vanguardWith specialRw
       : (vanguardWith radiumCarbine & em_model %~ alpha)
       : replicate (n-3) (vanguardWith radiumCarbine)
+
+bladesRuststalkers :: Int -> [EquippedModel]
+bladesRuststalkers n =
+    (bladesRuststalker & em_model .~ ruststalkerPrincepsModel
+                       & em_name  .~ "ruststalker princeps w/transonic blades")
+      : replicate (n-1) bladesRuststalker
+
+razorClawRuststalkers :: Int -> [EquippedModel]
+razorClawRuststalkers n =
+    concat $
+      (razorClawRuststalker & mapped.em_model %~ (\m -> ruststalkerPrincepsModel & model_att .~ m^.model_att)
+                            & mapped.em_name  .~ "ruststalker princeps w/transonic razor+claw")
+        : replicate (n-1) razorClawRuststalker
+
+taserGoadInfiltrators :: Int -> [EquippedModel]
+taserGoadInfiltrators n =
+    (taserGoadInfiltrator & em_model .~ infiltratorPrincepsModel
+                          & em_name  .~ "taser goad infiltrator princeps")
+      : replicate (n-1) taserGoadInfiltrator
+
+powerSwordInfiltrators :: Int -> [EquippedModel]
+powerSwordInfiltrators n =
+    (powerSwordInfiltrator & em_model .~ infiltratorPrincepsModel
+                           & em_name  .~ "power sword infiltrator princeps")
+      : replicate (n-1) powerSwordInfiltrator

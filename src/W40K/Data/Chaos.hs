@@ -5,6 +5,7 @@ import Control.Lens
 
 import W40K.Core.Prob
 import W40K.Core.Mechanics
+import W40K.Core.Psychic
 
 import W40K.Data.Common
 
@@ -35,6 +36,7 @@ daemonPrinceModel = meq
   & model_ld    .~ 10
   & model_save  .~ 3
   & model_inv   .~ 5
+  & model_mods.mod_rrtohit .~ RerollOnes
   & model_name  .~ "daemon prince"
 
 chaosMarineModel :: Model
@@ -57,4 +59,3 @@ blightlordTerminatorModel = teq
   & model_inv  .~ 4
   & model_fnp  .~ 5
   & model_name .~ "blightlord terminator"
-

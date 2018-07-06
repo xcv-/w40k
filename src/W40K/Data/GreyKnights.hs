@@ -29,6 +29,9 @@ grandMasterAura = noAura & aura_any <>~ grandMasterMods
 draigoAura :: Aura
 draigoAura = noAura & aura_any <>~ draigoMods
 
+chaplainAura :: Aura
+chaplainAura = noAura & aura_cc.mod_rrtohit .~ RerollFailed
+
 
 -- MODIFIERS
 
@@ -175,13 +178,12 @@ draigoModel = grandMasterModel
 
 -- PSYCHIC
 
-gkCasting :: Bool -> [EquippedModel] -> PsychicPower -> PsykerCasting
-gkCasting channeling models power = PsykerCasting
+gkCasting :: Bool -> [EquippedModel] -> PsykerCasting
+gkCasting channeling models = PsykerCasting
     { _cast_bonus                  = Add 1
     , _cast_usingPsychicChanneling = channeling
     , _cast_psyker                 = maximumBy (compare `on` (^.em_model.model_ld)) models
                                        ^. em_model
-    , _cast_power                  = power
     }
 
 ritesOfBanishment :: PsychicPower
@@ -313,6 +315,19 @@ titansword = nemesis_ccw
   & ccw_dmg    .~ return 3
   & ccw_name   .~ "the titansword"
 
+greatsword :: CCWeapon
+greatsword = argyrum
+  & ccw_strMod .~ Add 4
+  & ccw_dmg    .~ d6
+  & ccw_name   .~ "nemesis greatsword"
+
+greathammer :: CCWeapon
+greathammer = greatsword
+  & ccw_unwieldly .~ True
+  & ccw_strMod    .~ Times 2
+  & ccw_dmg       .~ fmap (max 3) d6
+  & ccw_name      .~ "nemesis greathammer"
+
 nemesisDoomglaive :: CCWeapon
 nemesisDoomglaive = nemesis_ccw
   & ccw_strMod .~ Add 3
@@ -377,6 +392,11 @@ brotherhoodAncient = paladin falchion
 
 grandMaster :: CCWeapon -> EquippedModel
 grandMaster = gkEquippedModel grandMasterModel
+
+gmndkWith :: [RngWeapon] -> CCWeapon -> EquippedModel
+gmndkWith rw ccw = basicEquippedModel gmndkModel
+  & em_rw  .~ rw
+  & em_ccw .~ ccw
 
 voldus :: EquippedModel
 voldus = grandMaster argyrum
