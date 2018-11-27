@@ -17,6 +17,9 @@ dominusAura = noAura & aura_rng.mod_rrtohit .~ RerollOnes
 cawlAura :: Aura
 cawlAura = noAura & aura_rng.mod_rrtohit .~ RerollAll
 
+nearOnager :: Modifier
+nearOnager = em_model.model_mods.mod_rrinv .~ RerollOnes
+
 
 -- CANTICLES
 
@@ -60,17 +63,11 @@ conquerorDoctrinaImperative em =
     name = em^.em_model.model_name
 
 eliminationVolley :: Modifier
-eliminationVolley em =
-    if "kataphron" `isInfixOf` name || "kastelan" `isInfixOf` name then
-      em & em_model.model_rng_mods.mod_tohit +~ 1
-    else
-      em
-  where
-    name = em^.em_model.model_name
+eliminationVolley = em_model.model_rng_mods.mod_tohit +~ 1
 
 wrathOfMars :: Modifier
 wrathOfMars =
-    em_rw.mapped.rw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalWounds (return 1))
+    em_rw.mapped.rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalWounds (return 1))
 
 
 data Protocol = Aegis | Protector | Conqueror
@@ -159,7 +156,13 @@ kastelanModel = rhino
   & model_rng_inv .~ 5
   & model_name    .~ "kastelan robot"
 
-onagerModel = undefined
+onagerModel :: Model
+onagerModel = rhino
+  & model_ws          .~ 5
+  & model_wnd         .~ 11
+  & model_inv         .~ 5
+  & model_ignoreHeavy .~ True
+  & model_name        .~ "onager dunecrawler (d-t)"
 
 -- RANGED WEAPONS
 
@@ -174,7 +177,7 @@ galvanicRifleAp1 = galvanicRifleAp0
 
 galvanicRifle :: RngWeapon
 galvanicRifle = galvanicRifleAp0
-  & rw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookModWeapon (galvanicRifleAp1^.rw_weapon))
+  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookModWeapon (galvanicRifleAp1^.rw_weapon))
   & rw_name                      .~ "galvanic rifle"
 
 radiumCarbineDmg1 :: RngWeapon
@@ -191,7 +194,7 @@ radiumCarbineDmg2 = radiumCarbineDmg1
 
 radiumCarbine :: RngWeapon
 radiumCarbine = radiumCarbineDmg1
-  & rw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookModWeapon (radiumCarbineDmg2^.rw_weapon))
+  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookModWeapon (radiumCarbineDmg2^.rw_weapon))
   & rw_name     .~ "radium carbine"
 
 plasmaCaliver :: RngWeapon
@@ -212,7 +215,7 @@ transuranicArquebus = lascannon
   & rw_str      .~ 7
   & rw_ap       .~ -2
   & rw_dmg      .~ d3
-  & rw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalWounds (return 1))
+  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalWounds (return 1))
   & rw_name     .~ "transuranic arquebus"
 
 flechetteBlaster :: RngWeapon
@@ -281,25 +284,25 @@ neutronLaser = lascannon
 transonicRazor :: CCWeapon
 transonicRazor = basic_ccw
   & ccw_name   .~ "transonic razor"
-  & ccw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalDamage (return 1))
+  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalDamage (return 1))
 
 transonicBlades :: CCWeapon
 transonicBlades = basic_ccw
   & ccw_strMod .~ Add 1
   & ccw_name   .~ "transonic blades"
-  & ccw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalDamage (return 1))
+  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalDamage (return 1))
 
 chordClaw :: CCWeapon
 chordClaw = basic_ccw
   & ccw_dmg    .~ d3
   & ccw_name   .~ "chord claw"
-  & ccw_weapon.w_hooks.hook_wound ?~ RollHook 6 (WoundHookMortalDamage d3)
+  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalDamage d3)
 
 taserGoad :: CCWeapon
 taserGoad = basic_ccw
   & ccw_strMod .~ Add 2
   & ccw_name   .~ "taser goad"
-  & ccw_weapon.w_hooks.hook_hit ?~ RollHook 6 (HitHookExtraHits 2)
+  & ccw_weapon.w_hooks.hook_hit %~ addRollHook 6 (HitHookExtraHits 2)
 
 taserLance :: CCWeapon
 taserLance = basic_ccw
@@ -307,7 +310,7 @@ taserLance = basic_ccw
   & ccw_ap     .~ -1
   & ccw_dmg    .~ return 2
   & ccw_name   .~ "taser lance"
-  & ccw_weapon.w_hooks.hook_hit ?~ RollHook 6 (HitHookExtraHits 2)
+  & ccw_weapon.w_hooks.hook_hit %~ addRollHook 6 (HitHookExtraHits 2)
 
 
 -- EQUIPPED MODELS

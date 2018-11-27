@@ -2,6 +2,7 @@
 module W40K.Data.Common where
 
 import Prelude hiding (Functor(..), Monad(..))
+import Data.Bool (bool)
 import Data.List (intercalate)
 import Control.Lens
 
@@ -77,7 +78,8 @@ meq = Model
   , _model_cc_mods          = noMods
   , _model_rng_mods         = noMods
   , _model_quantumShielding = False
-  , _model_machineSpirit    = False
+  , _model_allIsDust        = False
+  , _model_ignoreHeavy      = False
   , _model_fnp              = 7
   , _model_name             = "MEQ"
   }
@@ -157,6 +159,12 @@ hurricaneBolter = bolter
   & rw_shots  .~ return 6
   & rw_name   .~ "hurricane bolter"
 
+heavyStubber :: RngWeapon
+heavyStubber = bolter
+  & rw_shots .~ return 3
+  & rw_class .~ Heavy
+  & rw_name  .~ "heavy stubber"
+
 heavyBolter :: RngWeapon
 heavyBolter = bolter
   & rw_shots .~ return 3
@@ -191,27 +199,42 @@ lascannon = RngWeapon
     & w_dmg    .~ d6
   }
 
-heavyPlasmaCannon :: RngWeapon
-heavyPlasmaCannon = bolter
+plasmaCannon :: Bool -> RngWeapon
+plasmaCannon overcharge = bolter
   & rw_shots .~ d3
-  & rw_str   .~ 7
+  & rw_str   .~ bool 8 7 overcharge
   & rw_ap    .~ -3
-  & rw_dmg   .~ return 1
-  & rw_name  .~ "heavy plasma cannon"
+  & rw_dmg   .~ bool (return 1) (return 2) overcharge
+  & rw_name  .~ "plasma cannon"
 
-heavyPlasmaCannonSupercharge :: RngWeapon
-heavyPlasmaCannonSupercharge = heavyPlasmaCannon
-  & rw_str   .~ 8
-  & rw_ap    .~ -3
-  & rw_dmg   .~ return 2
-  & rw_name  .~ "heavy plasma cannon (superchage)"
 
-multimelta :: RngWeapon
-multimelta = lascannon
+flamer :: RngWeapon
+flamer = bolter
+  & rw_class   .~ Assault
+  & rw_shots   .~ d6
+  & rw_autohit .~ True
+  & rw_name    .~ "flamer"
+
+heavyFlamer :: RngWeapon
+heavyFlamer = flamer
+  & rw_class   .~ Heavy
+  & rw_str     .~ 5
+  & rw_ap      .~ -1
+  & rw_name    .~ "heavy flamer"
+
+meltagun :: RngWeapon
+meltagun = bolter
+  & rw_class  .~ Assault
   & rw_str    .~ 8
   & rw_ap     .~ -4
-  & rw_name   .~ "multi-melta"
   & rw_melta  .~ True
+  & rw_name   .~ "meltagun"
+
+multimelta :: RngWeapon
+multimelta = meltagun
+  & rw_class  .~ Heavy
+  & rw_name   .~ "multi-melta"
+
 
 krakMissile :: RngWeapon
 krakMissile = lascannon
@@ -237,10 +260,16 @@ forceSword = powerSword
   & ccw_dmg  .~ d3
   & ccw_name .~ "force sword"
 
+forceStave :: CCWeapon
+forceStave = forceSword
+  & ccw_strMod .~ Add 2
+  & ccw_ap     .~ -1
+  & ccw_name   .~ "force sword"
+
 thunderHammer :: CCWeapon
 thunderHammer = basic_ccw
   & ccw_strMod    .~ Times 2
   & ccw_ap        .~ -3
   & ccw_dmg       .~ return 3
-  & ccw_unwieldly .~ True
   & ccw_name      .~ "thunder hammer"
+  & makeUnwieldly

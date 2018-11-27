@@ -1,3 +1,4 @@
+{-# language LambdaCase #-}
 module W40K.Data.Chaos where
 
 import Prelude hiding (Functor(..), Monad(..))
@@ -20,6 +21,9 @@ prescience = em_model.model_mods.mod_tohit +~ 1
 
 weaverOfFates :: Modifier
 weaverOfFates = em_model.model_inv %~ \inv -> max (inv-1) 3
+
+deathToTheFalseEmperor :: Modifier
+deathToTheFalseEmperor = em_ccw.as_weapon.w_hooks.hook_hit %~ addRollHook 6 (HitHookExtraAttacks 1)
 
 
 -- MODELS
@@ -59,3 +63,14 @@ blightlordTerminatorModel = teq
   & model_inv  .~ 4
   & model_fnp  .~ 5
   & model_name .~ "blightlord terminator"
+
+
+-- CC WEAPONS
+
+twoMaleficTalons :: CCWeapon
+twoMaleficTalons = basic_ccw
+  & ccw_attBonus .~ Add 3
+  & ccw_ap       .~ -2
+  & ccw_dmg      .~ return 2
+  & ccw_name     .~ "two malefic talons"
+

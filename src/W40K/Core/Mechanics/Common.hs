@@ -21,7 +21,7 @@ data CombatType = Melee | Ranged deriving Eq
 -- MODIFIERS & REROLLS
 
 data IntMod = NoMod | Add !Int | Times !Int | Half | Dot !IntMod !IntMod
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 applyIntMod :: IntMod -> Int -> Int
 applyIntMod NoMod       n = n
@@ -34,7 +34,8 @@ instance Monoid IntMod where
     mempty = NoMod
     mappend = Dot
 
-data Reroll = NoReroll | RerollOnes | RerollFailed | RerollAll deriving (Eq, Ord)
+data Reroll = NoReroll | RerollOnes | RerollFailed | RerollAll
+  deriving (Eq, Ord, Show)
 
 instance Monoid Reroll where
     mempty = NoReroll
@@ -53,7 +54,7 @@ data RollMods = RollMods
   , _mod_tobehit   :: Int
   , _mod_recvdmg   :: IntMod
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 makeLenses ''RollMods
 
@@ -113,14 +114,14 @@ data RollHook eff = RollHook
   { _hook_minRoll :: !Int
   , _hook_eff     :: !eff
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 makeLenses ''RollHook
 
 data HitHookEff
     = HitHookExtraHits    !Int
     | HitHookExtraAttacks !Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 type HitHook = RollHook HitHookEff
 
@@ -131,25 +132,28 @@ data WoundHookEff
     | WoundHookMortalWounds !(Prob Int)
     | WoundHookMortalDamage !(Prob Int)
     | WoundHookModWeapon    !Weapon
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 type WoundHook = RollHook WoundHookEff
 
 data RollHooks = RollHooks
-  { _hook_hit   :: Maybe HitHook
-  , _hook_wound :: Maybe WoundHook
+  { _hook_hit   :: [HitHook]
+  , _hook_wound :: [WoundHook]
   , _hook_dmg   :: ()
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 noHooks :: RollHooks
-noHooks = RollHooks Nothing Nothing ()
+noHooks = RollHooks [] [] ()
+
+addRollHook :: Int -> eff -> [RollHook eff] -> [RollHook eff]
+addRollHook minRoll eff = (RollHook minRoll eff:)
 
 data ModelClass = Infantry | Monster | Vehicle | Swarm | Cavalry | Biker | Beast | Battlesuit
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
-data WeaponWoundingMode = UseStrength | FixedWoundingAgainst !ModelClass !Int
-  deriving (Eq, Ord)
+data WeaponWoundingMode = UseStrength | FixedWoundingAgainst [ModelClass] !Int
+  deriving (Eq, Ord, Show)
 
 data Weapon = Weapon
   { _w_ap       :: !Int
@@ -160,7 +164,7 @@ data Weapon = Weapon
   , _w_hooks    :: !RollHooks
   , _w_name     :: !String
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 
 makeLenses ''RollHooks
@@ -218,11 +222,11 @@ data Model = Model
   , _model_rng_mods         :: !RollMods
   , _model_moved            :: !Bool
   , _model_quantumShielding :: !Bool
-  , _model_machineSpirit    :: !Bool
+  , _model_allIsDust        :: !Bool
+  , _model_ignoreHeavy      :: !Bool
   , _model_fnp              :: !Int
   , _model_name             :: !String
   }
-  deriving Eq
 
 makeLenses ''Model
 
@@ -295,14 +299,20 @@ roll rr d noModPass modPass = do
         RerollAll                        -> True
         otherwise                        -> False
 
+
+allIsDustSaveMod :: Weapon -> Model -> Int
+allIsDustSaveMod w tgt
+  | tgt^.model_allIsDust && (w^.w_dmg == return 1) = 1
+  | otherwise                                      = 0
+
 requiredWoundRoll :: Weapon -> Int -> Model -> Int
 requiredWoundRoll w str tgt =
     case w^.w_wounding of
       UseStrength -> compareStrTgh str (tgt^.model_tgh)
 
       FixedWoundingAgainst cls minWndRoll
-        | tgt^.model_class == cls -> minWndRoll
-        | otherwise               -> compareStrTgh str (tgt^.model_tgh)
+        | tgt^.model_class `elem` cls -> minWndRoll
+        | otherwise                   -> compareStrTgh str (tgt^.model_tgh)
   where
     compareStrTgh str tgh
       | 2*str <=   tgh = 6

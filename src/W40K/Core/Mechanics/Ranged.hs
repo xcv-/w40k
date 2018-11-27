@@ -77,8 +77,8 @@ rngHitMods src w tgt =
     + tgt^.model_rng_mods.mod_tobehit
   where
     heavyWeaponMod
-      | w^.rw_class == Heavy && src^.model_moved && not (src^.model_machineSpirit) = -1
-      | otherwise                                                                  = 0
+      | w^.rw_class == Heavy && src^.model_moved && not (src^.model_ignoreHeavy) = -1
+      | otherwise                                                                = 0
 
 rngDoesHit :: Model -> RngWeapon -> Model -> Int -> Bool
 rngDoesHit src w tgt
@@ -122,7 +122,7 @@ rngSaveArmor rw tgt =
   where
     w = rw^.rw_weapon
     requiredRoll = tgt^.model_save
-    armorMod     = tgt^.model_rng_mods.mod_toarmor + w^.w_ap
+    armorMod     = tgt^.model_rng_mods.mod_toarmor + w^.w_ap + allIsDustSaveMod (rw^.as_weapon) tgt
     reroll       = tgt^.model_rng_mods.mod_rrarmor
 
 rngSaveInv :: RngWeapon -> Model -> Prob Bool
@@ -132,7 +132,7 @@ rngSaveInv rw tgt
   where
     w = rw^.rw_weapon
     requiredRoll = tgt^.model_rng_inv
-    invMod       = tgt^.model_rng_mods.mod_toinv
+    invMod       = tgt^.model_rng_mods.mod_toinv + allIsDustSaveMod (rw^.as_weapon) tgt
     reroll       = tgt^.model_rng_mods.mod_rrinv
 
 rngProbSave :: RngWeapon -> Model -> QQ
@@ -150,7 +150,7 @@ rngProbSave rw tgt =
 rngShrinkModels :: [(Model, RngWeapon)] -> [(Model, RngWeapon)]
 rngShrinkModels = groupWith eqrel sumShots
   where
-    relevantModelFields m = (m^.model_bs, m^.model_rng_mods, m^.model_moved, m^.model_machineSpirit)
+    relevantModelFields m = (m^.model_bs, m^.model_rng_mods, m^.model_moved && not (m^.model_ignoreHeavy))
 
     eqrel :: (Model, RngWeapon) -> (Model, RngWeapon) -> Bool
     eqrel (m1,w1) (m2,w2) = relevantModelFields m1 == relevantModelFields m2 && w1 == w2

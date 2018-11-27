@@ -1,9 +1,9 @@
 {-# language TemplateHaskell #-}
 module W40K.Core.Mechanics.Melee
   ( CCWeapon (..)
-  , ccw_strMod, ccw_unwieldly, ccw_attBonus, ccw_weapon
+  , ccw_strMod, ccw_attBonus, ccw_weapon
   , ccw_ap, ccw_dmg, ccw_mods, ccw_name
-  , basic_ccw
+  , basic_ccw, makeUnwieldly
   ) where
 
 import Prelude hiding (Functor(..), Monad(..))
@@ -15,7 +15,6 @@ import W40K.Core.Mechanics.Common
 
 data CCWeapon = CCWeapon
   { _ccw_strMod    :: IntMod
-  , _ccw_unwieldly :: Bool
   , _ccw_attBonus  :: IntMod
   , _ccw_weapon    :: Weapon
   }
@@ -38,10 +37,12 @@ ccw_name = ccw_weapon.w_name
 basic_ccw :: CCWeapon
 basic_ccw = CCWeapon
   { _ccw_strMod    = NoMod
-  , _ccw_unwieldly = False
   , _ccw_attBonus  = NoMod
   , _ccw_weapon    = basicWeapon "default ccw"
   }
+
+makeUnwieldly :: CCWeapon -> CCWeapon
+makeUnwieldly = ccw_weapon.w_mods.mod_tohit -~ 1
 
 
 instance IsWeapon CCWeapon where
@@ -110,7 +111,7 @@ ccSaveArmor ccw tgt =
   where
     w = ccw^.ccw_weapon
     requiredRoll = tgt^.model_save
-    armorMod     = tgt^.model_cc_mods.mod_toarmor + w^.w_ap
+    armorMod     = tgt^.model_cc_mods.mod_toarmor + w^.w_ap + allIsDustSaveMod (ccw^.as_weapon) tgt
     reroll       = tgt^.model_cc_mods.mod_rrarmor
 
 ccSaveInv :: CCWeapon -> Model -> Prob Bool
@@ -120,7 +121,7 @@ ccSaveInv ccw tgt
   where
     w = ccw^.ccw_weapon
     requiredRoll = tgt^.model_cc_inv
-    invMod       = tgt^.model_cc_mods.mod_toinv
+    invMod       = tgt^.model_cc_mods.mod_toinv + allIsDustSaveMod (ccw^.as_weapon) tgt
     reroll       = tgt^.model_cc_mods.mod_rrinv
 
 ccProbSave :: CCWeapon -> Model -> QQ

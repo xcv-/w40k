@@ -29,7 +29,7 @@ module W40K.Core.Prob
   , fail
   , (>>)
   , (<<)
-  --, forM
+  , forM
   --, sequence
   --, foldlM'
   , uniformly
@@ -322,13 +322,13 @@ mb << ma = ma >> mb
 infixr 1 <<
 {-# inline (<<) #-}
 
--- forM :: (ConstrMonad c m, c b, c [b], c (m [b])) => [a] -> (a -> m b) -> m [b]
--- forM []     f = return []
--- forM (a:as) f = do
---     b  <- f a
---     bs <- forM as f
---     return (b:bs)
--- {-# inlinable forM #-}
+forM :: (ConstrMonad c m, c b, c [b], c (m [b])) => [a] -> (a -> m b) -> m [b]
+forM []     f = return []
+forM (a:as) f = do
+    b  <- f a
+    bs <- forM as f
+    return (b:bs)
+{-# inlinable forM #-}
 --
 -- sequence :: (ConstrMonad c m, c a, c [a], c (m [a])) => [m a] -> m [a]
 -- sequence mas = forM mas id

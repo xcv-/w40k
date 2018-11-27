@@ -11,11 +11,11 @@ import W40K.Data.Common
 import qualified W40K.Data.Chaos as Chaos
 
 
-allIsDust :: Modifier
-allIsDust = em_model.model_mods.mod_tosave +~ 1
+otherworldlyPresence :: Model -> Model
+otherworldlyPresence = (model_inv -~ 1) . (model_name <>~ " (otherworldly presence)")
 
-glamourOfTzeentch :: Modifier
-glamourOfTzeentch = em_model.model_mods.mod_tobehit -~ 1
+glamourOfTzeentch :: Model -> Model
+glamourOfTzeentch = (model_mods.mod_tobehit -~ 1) . (model_name <>~ " (-1 to hit)")
 
 weaverOfFates :: Modifier
 weaverOfFates = Chaos.weaverOfFates
@@ -26,7 +26,6 @@ gazeOfMagnus = smite
       if cv >= 10 then two_d6 else d6
   where
     two_d6 = sumProbs [d6, d6]
-
 
 
 -- MODELS
@@ -58,8 +57,9 @@ tzaangorModel = meq
 
 rubricModel :: Model
 rubricModel = meq
-  & model_inv  .~ 5
-  & model_name .~ "rubric marine"
+  & model_inv         .~ 5
+  & model_ignoreHeavy .~ True
+  & model_name        .~ "rubric marine"
 
 magnusModel :: Model
 magnusModel = daemonPrinceModel
@@ -86,8 +86,21 @@ infernoBoltPistol = boltPistol
   & rw_ap   .~ -2
   & rw_name .~ "inferno bolt pistol"
 
+soulreaperCannon :: RngWeapon
+soulreaperCannon = heavyBolter
+  & rw_class .~ Heavy
+  & rw_shots .~ return 4
+  & rw_ap    .~ -3
+  & rw_name  .~ "soulreaper cannon"
+
 
 -- CC WEAPONS
+
+tzaangorBlades :: CCWeapon
+tzaangorBlades = basic_ccw
+  & ccw_attBonus .~ Add 1
+  & ccw_ap       .~ -1
+  & ccw_name     .~ "tzaangor blades"
 
 bladeOfMagnus :: CCWeapon
 bladeOfMagnus = basic_ccw
@@ -99,15 +112,29 @@ bladeOfMagnus = basic_ccw
 
 -- EQUIPPED MODELS
 
+tzaangor :: EquippedModel
+tzaangor = basicEquippedModel tzaangorModel
+  & em_ccw   .~ tzaangorBlades
+
+twistbray :: EquippedModel
+twistbray = tzaangor
+  & em_model %~ (model_att +~ 1) . (model_ld +~ 1)
+  & em_name  .~ "twistbray"
+
 bolterRubric :: EquippedModel
 bolterRubric = basicEquippedModel rubricModel
-  & em_rw .~ [infernoBolter]
+  & em_rw    .~ [infernoBolter]
+
+soulreaperRubric :: EquippedModel
+soulreaperRubric = basicEquippedModel rubricModel
+  & em_rw    .~ [soulreaperCannon]
 
 aspiringSorcerer :: EquippedModel
-aspiringSorcerer = basicEquippedModel rubricModel
-  & em_model %~ (model_att +~ 1) . (model_ld +~ 1)
-  & em_ccw   .~ forceSword
+aspiringSorcerer = bolterRubric
+  & em_model %~ (model_att +~ 1) . (model_ld +~ 1) . (model_allIsDust .~ False)
+  & em_ccw   .~ forceStave
   & em_rw    .~ [infernoBoltPistol]
+  & em_name  .~ "aspiring sorcerer"
 
 magnus :: EquippedModel
 magnus = basicEquippedModel magnusModel
@@ -116,13 +143,25 @@ magnus = basicEquippedModel magnusModel
 
 buffedMagnus :: EquippedModel
 buffedMagnus = magnus
-  & glamourOfTzeentch
+  & em_model %~ glamourOfTzeentch
   & weaverOfFates
   & Chaos.prescience
   & Chaos.diabolicStrength
+  & em_name  .~ "magnus the red (buffed)"
 
 
 -- SQUADS
 
+maleficTalonsDaemonPrince :: EquippedModel
+maleficTalonsDaemonPrince = basicEquippedModel daemonPrinceModel
+  & em_ccw   .~ Chaos.twoMaleficTalons
+  & em_name  .~ "daemon prince w/malefic talons"
+
+tzaangors :: Int -> [EquippedModel]
+tzaangors n = twistbray : replicate (n-1) tzaangor
+
 rubricSquad :: Int -> [EquippedModel]
 rubricSquad n = aspiringSorcerer : replicate (n-1) bolterRubric
+
+soulreaperRubricSquad ::  Int -> [EquippedModel]
+soulreaperRubricSquad n = soulreaperRubric : rubricSquad (n-1)

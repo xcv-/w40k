@@ -284,12 +284,12 @@ hammer = basic_ccw
   & ccw_strMod    .~ Times 2
   & ccw_ap        .~ -3
   & ccw_dmg       .~ return 3
-  & ccw_unwieldly .~ True
   & ccw_name      .~ "nemesis daemon hammer"
+  & makeUnwieldly
 
 blackBladeAntwyr :: CCWeapon
 blackBladeAntwyr = basic_ccw
-  & ccw_weapon.w_hooks.hook_wound .~ Just (RollHook 0 (WoundHookExtraAttacks 1))
+  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 0 (WoundHookExtraAttacks 1)
   & ccw_name                      .~ "black blade of antwyr"
 
 soulGlaive :: CCWeapon
@@ -304,8 +304,10 @@ crys'yllixDestroyer = hammer
   & ccw_name .~ "destroyer of crys'yllix"
 
 argyrum :: CCWeapon
-argyrum = hammer
-  & ccw_unwieldly .~ False
+argyrum = basic_ccw
+  & ccw_strMod    .~ Times 2
+  & ccw_ap        .~ -3
+  & ccw_dmg       .~ return 3
   & ccw_name      .~ "malleus argyrum"
 
 titansword :: CCWeapon
@@ -323,10 +325,10 @@ greatsword = argyrum
 
 greathammer :: CCWeapon
 greathammer = greatsword
-  & ccw_unwieldly .~ True
   & ccw_strMod    .~ Times 2
   & ccw_dmg       .~ fmap (max 3) d6
   & ccw_name      .~ "nemesis greathammer"
+  & makeUnwieldly
 
 nemesisDoomglaive :: CCWeapon
 nemesisDoomglaive = nemesis_ccw

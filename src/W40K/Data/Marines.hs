@@ -22,6 +22,7 @@ guillimanAura = noAura & aura_any.mod_rrtohit   .~ RerollFailed
 telionAbility :: Modifier
 telionAbility = em_model.model_mods.mod_tohit +~ 1
 
+
 -- MODELS
 
 scout :: Model
@@ -112,19 +113,19 @@ stormraven = rhino
   & model_tgh                  .~ 7
   & model_wnd                  .~ 14
   & model_rng_mods.mod_tobehit .~ -1
-  & model_machineSpirit        .~ True
+  & model_ignoreHeavy          .~ True
   & model_name                 .~ "stormraven"
 
 landraider :: Model
 landraider = rhino
-  & model_wnd           .~ 16
-  & model_str           .~  8
-  & model_tgh           .~  8
-  & model_att           .~  6
-  & model_ld            .~ 9
-  & model_save          .~  2
-  & model_machineSpirit .~ True
-  & model_name          .~ "landraider"
+  & model_wnd         .~ 16
+  & model_str         .~  8
+  & model_tgh         .~  8
+  & model_att         .~  6
+  & model_ld          .~ 9
+  & model_save        .~  2
+  & model_ignoreHeavy .~ True
+  & model_name        .~ "landraider"
 
 
 -- RANGED WEAPONS
@@ -132,7 +133,7 @@ landraider = rhino
 sniperRifle :: RngWeapon
 sniperRifle = bolter
   & rw_class                     .~ Heavy
-  & rw_weapon.w_hooks.hook_wound .~ Just (RollHook 6 (WoundHookMortalWounds (return 1)))
+  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalWounds (return 1))
   & rw_name                      .~ "sniper rifle"
 
 quietusRifle :: RngWeapon
@@ -140,7 +141,7 @@ quietusRifle = sniperRifle
   & rw_shots                     .~ return 2
   & rw_ap                        .~ -1
   & rw_dmg                       .~ d3
-  & rw_weapon.w_hooks.hook_wound .~ Nothing
+  & rw_weapon.w_hooks.hook_wound .~ []
   & rw_name                      .~ "quietus rifle"
 
 hunterkiller :: RngWeapon

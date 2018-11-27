@@ -55,12 +55,12 @@ type NamedEqUnit = (String, CombatType, [EquippedModel])
 data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
 
 data AnalysisFn tgt r where
-    NumWounds      :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
-    NumWoundsMax   :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
-    SlainModels    :: ProbPlotType              -> AnalysisFn Model        (Prob QQ)
-    SlainModelsInt :: ProbPlotType              -> AnalysisFn Model        (Prob Int)
-    ProbKill       ::                              AnalysisFn (Int, Model) QQ
-    ProbKillOne    ::                              AnalysisFn Model        QQ
+    NumWounds      :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    NumWoundsMax   :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    SlainModels    :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob QQ)
+    SlainModelsInt :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    ProbKill       :: IsModel tgt =>                 AnalysisFn (Int, tgt) QQ
+    ProbKillOne    :: IsModel tgt =>                 AnalysisFn tgt        QQ
 
 data AnalysisConfig tgt r = AnalysisConfig AnalysisOrder (AnalysisFn tgt r) [NamedEqUnit] [tgt]
 
@@ -78,20 +78,20 @@ analysisFnName ProbKill           = "" -- unused (grouped later in a bar plot)
 analysisFnName ProbKillOne        = "" -- unused (grouped later in a bar plot)
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
-analysisFnTgtName (NumWounds _)      = (^.model_name)
-analysisFnTgtName (NumWoundsMax _)   = (^.model_name)
-analysisFnTgtName (SlainModels _)    = (^.model_name)
-analysisFnTgtName (SlainModelsInt _) = (^.model_name)
-analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.model_name
-analysisFnTgtName ProbKillOne        = (^.model_name)
+analysisFnTgtName (NumWounds _)      = (^.as_model.model_name)
+analysisFnTgtName (NumWoundsMax _)   = (^.as_model.model_name)
+analysisFnTgtName (SlainModels _)    = (^.as_model.model_name)
+analysisFnTgtName (SlainModelsInt _) = (^.as_model.model_name)
+analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.as_model.model_name
+analysisFnTgtName ProbKillOne        = (^.as_model.model_name)
 
 applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
-applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs
-applyAnalysisFn (NumWoundsMax _)   ct srcs = \tgt -> numWoundsMax ct srcs tgt (tgt^.model_wnd)
-applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs
-applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs
-applyAnalysisFn ProbKill           ct srcs = uncurry $ probKill ct srcs
-applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1
+applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs . view as_model
+applyAnalysisFn (NumWoundsMax _)   ct srcs = \tgt -> numWoundsMax ct srcs (tgt^.as_model) (tgt^.as_model.model_wnd)
+applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs . view as_model
+applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs . view as_model
+applyAnalysisFn ProbKill           ct srcs = uncurry (probKill ct srcs) . (_2 %~ view as_model)
+applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1 . view as_model
 
 analyzeByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
 analyzeByAttacker fn squads tgts =
@@ -112,7 +112,7 @@ analyzeByTarget fn squads tgts =
     | tgt <- tgts
     , let title = titleTgt tgt ]
   where
-    legendAtt name ct = "by " ++ name ++ " " ++ titleCombatType ct
+    legendAtt name ct = "with " ++ name ++ " " ++ titleCombatType ct
     titleTgt tgt = analysisFnName fn ++ " targeting " ++ analysisFnTgtName fn tgt
 
 eventChart :: Chart.PlotValue a => String -> [Event a] -> [Event a] -> (a, Chart.PlotLines a Chart.Percent)
