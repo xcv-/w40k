@@ -118,8 +118,13 @@ analyzeByTarget fn squads tgts =
 eventChart :: Chart.PlotValue a => String -> [Event a] -> [Event a] -> (a, Chart.PlotLines a Chart.Percent)
 eventChart title relevantEvts evts =
     (lastEvt, def & Chart.plot_lines_title  .~ title
-                  & Chart.plot_lines_values .~ [[(a, Chart.Percent (realToFrac $ p*100)) | Event a p <- evts]])
+                  & Chart.plot_lines_values .~ [[(a, toPercent p) | Event a p <- evts]])
   where
+    toPercent p
+      | p < 0     = Chart.Percent 0
+      | p > 1     = Chart.Percent 100
+      | otherwise = Chart.Percent (p*100)
+
     lastEvt =
       let (Event a _) = last relevantEvts
       in a
