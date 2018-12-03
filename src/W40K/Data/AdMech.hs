@@ -4,6 +4,8 @@ import Prelude hiding (Functor(..), Monad(..))
 import Data.List (isInfixOf)
 
 import Control.Lens
+
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Data.Common
@@ -336,6 +338,12 @@ razorClawRuststalker = basicEquippedModel ruststalkerModel
   & em_name   .~ "ruststalker w/transonic razor+claw"
   & splitAttacks 1 chordClaw
 
+razorClawRuststalkerAlpha :: [EquippedModel]
+razorClawRuststalkerAlpha = basicEquippedModel (alpha ruststalkerModel)
+  & em_ccw    .~ transonicRazor
+  & em_name   .~ "ruststalker alpha w/transonic razor+claw"
+  & splitAttacks 1 chordClaw
+
 taserGoadInfiltrator :: EquippedModel
 taserGoadInfiltrator = basicEquippedModel infiltratorModel
   & em_rw     .~ [flechetteBlaster]
@@ -403,10 +411,7 @@ bladesRuststalkers n =
 
 razorClawRuststalkers :: Int -> [EquippedModel]
 razorClawRuststalkers n =
-    concat $
-      (razorClawRuststalker & mapped.em_model %~ (\m -> ruststalkerPrincepsModel & model_att .~ m^.model_att)
-                            & mapped.em_name  .~ "ruststalker princeps w/transonic razor+claw")
-        : replicate (n-1) razorClawRuststalker
+    concat $ razorClawRuststalkerAlpha : replicate (n-1) razorClawRuststalker
 
 taserGoadInfiltrators :: Int -> [EquippedModel]
 taserGoadInfiltrators n =

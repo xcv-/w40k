@@ -6,6 +6,7 @@ import Data.Bool (bool)
 import Data.List (intercalate)
 import Control.Lens
 
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Core.Psychic
@@ -139,7 +140,6 @@ bolter = RngWeapon
   { _rw_shots   = return 1
   , _rw_str     = 4
   , _rw_class   = RapidFire
-  , _rw_autohit = False
   , _rw_melta   = False
   , _rw_weapon  = basicWeapon "boltgun"
   }
@@ -192,7 +192,6 @@ lascannon = RngWeapon
   { _rw_shots   = return 1
   , _rw_str     = 9
   , _rw_class   = Heavy
-  , _rw_autohit = False
   , _rw_melta   = False
   , _rw_weapon  = basicWeapon "lascannon"
     & w_ap     .~ -3
@@ -210,10 +209,10 @@ plasmaCannon overcharge = bolter
 
 flamer :: RngWeapon
 flamer = bolter
-  & rw_class   .~ Assault
-  & rw_shots   .~ d6
-  & rw_autohit .~ True
-  & rw_name    .~ "flamer"
+  & rw_class            .~ Assault
+  & rw_shots            .~ d6
+  & rw_weapon.w_autohit .~ True
+  & rw_name             .~ "flamer"
 
 heavyFlamer :: RngWeapon
 heavyFlamer = flamer

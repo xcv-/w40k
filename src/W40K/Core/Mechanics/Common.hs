@@ -1,14 +1,13 @@
 {-# language RankNTypes #-}
 {-# language RebindableSyntax #-}
-{-# language ScopedTypeVariables #-}
 {-# language TemplateHaskell #-}
 module W40K.Core.Mechanics.Common where
 
 import Prelude hiding (Functor(..), Monad(..))
 
-import Data.List (groupBy)
 import Data.Monoid ((<>))
 
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import Control.Lens
 
@@ -30,29 +29,31 @@ applyIntMod (Times k)   n = n * k
 applyIntMod Half        n = (n+1) `div` 2
 applyIntMod (Dot m1 m2) n = applyIntMod m1 (applyIntMod m2 n)
 
+instance Semigroup IntMod where
+    (<>) = Dot
 instance Monoid IntMod where
     mempty = NoMod
-    mappend = Dot
 
 data Reroll = NoReroll | RerollOnes | RerollFailed | RerollAll
   deriving (Eq, Ord, Show)
 
+instance Semigroup Reroll where
+    (<>) = max
 instance Monoid Reroll where
     mempty = NoReroll
-    mappend = max
 
 
 data RollMods = RollMods
-  { _mod_tohit     :: Int
-  , _mod_rrtohit   :: Reroll
-  , _mod_towound   :: Int
-  , _mod_rrtowound :: Reroll
-  , _mod_toarmor   :: Int
-  , _mod_rrarmor   :: Reroll
-  , _mod_toinv     :: Int
-  , _mod_rrinv     :: Reroll
-  , _mod_tobehit   :: Int
-  , _mod_recvdmg   :: IntMod
+  { _mod_tohit     :: !Int
+  , _mod_rrtohit   :: !Reroll
+  , _mod_towound   :: !Int
+  , _mod_rrtowound :: !Reroll
+  , _mod_toarmor   :: !Int
+  , _mod_rrarmor   :: !Reroll
+  , _mod_toinv     :: !Int
+  , _mod_rrinv     :: !Reroll
+  , _mod_tobehit   :: !Int
+  , _mod_recvdmg   :: !IntMod
   }
   deriving (Eq, Ord, Show)
 
@@ -71,10 +72,8 @@ mod_rrtosave f mods =
     (\rrarmor rrinv -> mods { _mod_rrarmor = rrarmor, _mod_rrinv = rrinv })
       <$> f (_mod_rrarmor mods) <*> f (_mod_rrinv mods)
 
-instance Monoid RollMods where
-    mempty = noMods
-
-    mappend m1 m2 = RollMods
+instance Semigroup RollMods where
+    m1 <> m2 = RollMods
       { _mod_tohit     = _mod_tohit m1     +  _mod_tohit m2
       , _mod_rrtohit   = _mod_rrtohit m1   <> _mod_rrtohit m2
       , _mod_towound   = _mod_towound m1   +  _mod_towound m2
@@ -87,9 +86,12 @@ instance Monoid RollMods where
       , _mod_recvdmg   = _mod_recvdmg m1   <> _mod_recvdmg m2
       }
 
+instance Monoid RollMods where
+    mempty = noMods
+
 data Aura = Aura
-  { _aura_cc  :: RollMods
-  , _aura_rng :: RollMods
+  { _aura_cc  :: !RollMods
+  , _aura_rng :: !RollMods
   }
 
 makeLenses ''Aura
@@ -100,12 +102,13 @@ aura_any f (Aura cc rng) = Aura <$> f cc <*> f rng
 noAura :: Aura
 noAura = Aura noMods noMods
 
-instance Monoid Aura where
-    mempty = noAura
-    mappend a1 a2 = Aura
+instance Semigroup Aura where
+    a1 <> a2 = Aura
       { _aura_cc  = _aura_cc a1  <> _aura_cc a2
       , _aura_rng = _aura_rng a1 <> _aura_rng a2
       }
+instance Monoid Aura where
+    mempty = noAura
 
 
 -- WEAPONS
@@ -137,8 +140,8 @@ data WoundHookEff
 type WoundHook = RollHook WoundHookEff
 
 data RollHooks = RollHooks
-  { _hook_hit   :: [HitHook]
-  , _hook_wound :: [WoundHook]
+  { _hook_hit   :: ![HitHook]
+  , _hook_wound :: ![WoundHook]
   , _hook_dmg   :: ()
   }
   deriving (Eq, Ord, Show)
@@ -152,13 +155,14 @@ addRollHook minRoll eff = (RollHook minRoll eff:)
 data ModelClass = Infantry | Monster | Vehicle | Swarm | Cavalry | Biker | Beast | Battlesuit
   deriving (Eq, Ord, Show)
 
-data WeaponWoundingMode = UseStrength | FixedWoundingAgainst [ModelClass] !Int
+data WeaponWoundingMode = UseStrength | FixedWoundingAgainst ![ModelClass] !Int
   deriving (Eq, Ord, Show)
 
 data Weapon = Weapon
   { _w_ap       :: !Int
   , _w_dmg      :: !(Prob Int)
   , _w_mods     :: !RollMods
+  , _w_autohit  :: !Bool
   , _w_noinv    :: !Bool
   , _w_wounding :: !WeaponWoundingMode
   , _w_hooks    :: !RollHooks
@@ -175,6 +179,7 @@ basicWeapon name = Weapon
   { _w_ap       = 0
   , _w_dmg      = return 1
   , _w_mods     = noMods
+  , _w_autohit  = False
   , _w_noinv    = False
   , _w_wounding = UseStrength
   , _w_hooks    = noHooks
@@ -189,16 +194,26 @@ class IsWeapon w where
     weaponAttacks :: Model -> w -> Prob Int
 
     hitMods :: Model -> w -> Model -> Int
+    hitRoll :: Model -> w -> Model -> Prob Int
     doesHit :: Model -> w -> Model -> Int -> Bool
-    probHit :: Model -> w -> Model -> QQ
+    -- probHit :: Model -> w -> Model -> QQ
 
     woundMods :: Model -> w -> Int
+    woundRoll :: Model -> w -> Model -> Prob Int
     doesWound :: Model -> w -> Model -> Int -> Bool
-    probWound :: Model -> w -> Model -> QQ
+    -- probWound :: Model -> w -> Model -> QQ
 
     probSave :: w -> Model -> QQ
 
     shrinkModels :: [(Model, w)] -> [(Model, w)]
+
+probHit :: IsWeapon w => Model -> w -> Model -> QQ
+probHit src w tgt
+  | w^.as_weapon.w_autohit = 1
+  | otherwise              = probOf (doesHit src w tgt) (hitRoll src w tgt)
+
+probWound :: IsWeapon w => Model -> w -> Model -> QQ
+probWound src w tgt = probOf (doesWound src w tgt) (woundRoll src w tgt)
 
 probFailSave :: IsWeapon w => w -> Model -> QQ
 probFailSave w tgt = 1 - probSave w tgt
@@ -227,6 +242,7 @@ data Model = Model
   , _model_fnp              :: !Int
   , _model_name             :: !String
   }
+  deriving (Eq, Ord, Show)
 
 makeLenses ''Model
 
@@ -300,6 +316,26 @@ roll rr d noModPass modPass = do
         otherwise                        -> False
 
 
+skillRoll :: Reroll -> Int -> Int -> Prob Int
+skillRoll rr skill mods = do
+    k <- d6
+    let modK = k + mods
+
+    if k > 1 && modK >= skill then
+      return modK
+    else if rerollable k then
+      skillRoll NoReroll skill mods
+    else
+      return (max 1 modK)
+  where
+    rerollable k =
+      case rr of
+        RerollOnes   | k == 1    -> True
+        RerollFailed | k < skill -> True
+        RerollAll                -> True
+        otherwise                -> False
+
+
 allIsDustSaveMod :: Weapon -> Model -> Int
 allIsDustSaveMod w tgt
   | tgt^.model_allIsDust && (w^.w_dmg == return 1) = 1
@@ -321,10 +357,3 @@ requiredWoundRoll w str tgt =
       |   str >    tgh = 3
       | otherwise      = 4
 
-
-groupWith :: forall a b. (a -> a -> Bool) -> (a -> [a] -> b) -> [a] -> [b]
-groupWith eqrel fold = map combine . groupBy eqrel
-  where
-    combine :: [a] -> b
-    combine []     = error "groupWith: groupBy should not return empty groups"
-    combine (a:as) = fold a as

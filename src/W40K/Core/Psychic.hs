@@ -4,6 +4,7 @@ module W40K.Core.Psychic where
 
 import Prelude hiding (Functor(..), Applicative(..), Monad(..), liftA2, sequence, (=<<))
 
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
 import Control.Lens

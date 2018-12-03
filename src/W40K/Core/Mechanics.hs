@@ -1,12 +1,15 @@
 {-# language BangPatterns #-}
+{-# language TypeFamilies #-}
 {-# language RankNTypes #-}
 {-# language RebindableSyntax #-}
 {-# language ScopedTypeVariables #-}
 {-# language TemplateHaskell #-}
 {-# language TypeOperators #-}
+{-# language Strict #-}
 module W40K.Core.Mechanics
   ( module Mechanics
   , sumWounds
+  , sumWoundsMax
   , slainModels
   , EquippedModel (..)
   , em_model, em_ccw, em_rw, em_name
@@ -25,12 +28,19 @@ module W40K.Core.Mechanics
   ) where
 
 import Prelude hiding (Functor(..), Monad(..), (=<<))
+
+import Control.Lens
+
 import Data.Function    (on)
 import Data.List        (foldl', isInfixOf, sortBy)
 import Data.Traversable (for)
-import Control.Lens
 
+import W40K.Core.SortedList (SortedList, SortedListItem(..))
+import qualified W40K.Core.SortedList as SortedList
+
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
+import W40K.Core.Util ((:*:)(..))
 import W40K.Core.Mechanics.Common as Mechanics
 import W40K.Core.Mechanics.Melee  as Mechanics
 import W40K.Core.Mechanics.Ranged as Mechanics
@@ -38,149 +48,172 @@ import W40K.Core.Mechanics.Ranged as Mechanics
 
 -- GENERAL CORE MECHANICS
 
-newtype MortalWounds = MortalWounds { getMortalWounds :: Int }
-  deriving (Eq, Ord)
+type DamageRoll = Prob Int
 
+newtype MortalWounds = MortalWounds { getMortalWounds :: DamageRoll }
+  deriving (Eq, Ord, Show)
+
+instance Semigroup MortalWounds where
+    MortalWounds mw1 <> MortalWounds mw2 = MortalWounds (sumProbs [mw1, mw2])
 instance Monoid MortalWounds where
-    mempty = MortalWounds 0
-    mappend (MortalWounds mw1) (MortalWounds mw2) = MortalWounds (mw1+mw2)
+    mempty = MortalWounds (return 0)
 
-data TotalUnsavedWounds = TotalUnsavedWounds
-  { _total_wounding_hits   :: ![(Weapon, Int)]
-  , _total_wounding_mortal :: !MortalWounds
+
+data Wounds w = Wounds {-# unpack #-} !Int !w
+  deriving (Eq, Ord, Show)
+
+instance Ord w => SortedListItem (Wounds w) where
+    type ItemKey (Wounds w) = w
+
+    itemKey (Wounds _ w) = w
+    combineItems (Wounds n _) (Wounds n' w) = Wounds (n+n') w
+
+data TotalWounds w = TotalWounds
+  { _wounding_mortal :: !MortalWounds
+  , _wounding_hits   :: !(SortedList (Wounds w))
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
-makeLenses ''TotalUnsavedWounds
+makeLenses ''TotalWounds
 
-instance Monoid TotalUnsavedWounds where
-    mempty = TotalUnsavedWounds mempty mempty
-    mappend (TotalUnsavedWounds w1 mw1) (TotalUnsavedWounds w2 mw2) = TotalUnsavedWounds (mappend w1 w2) (mappend mw1 mw2)
+instance Ord w => Semigroup (TotalWounds w) where
+    TotalWounds w1 mw1 <> TotalWounds w2 mw2 = TotalWounds (w1 <> w2) (mw1 <> mw2)
+instance Ord w => Monoid (TotalWounds w) where
+    mempty = TotalWounds mempty mempty
 
 
-unsavedWounds :: IsWeapon w => Model -> w -> Model -> Prob TotalUnsavedWounds
-unsavedWounds src w tgt = do
+rollHits :: IsWeapon w => Model -> w -> Model -> Prob Int
+rollHits src w tgt = do
     natt <- weaponAttacks src w
-    totalHits <- rollToHit natt (w^.as_weapon.w_hooks.hook_hit)
 
-    nwound    <- binomial totalHits pWound
-    woundEffs <- getWoundEffs nwound [] (w^.as_weapon.w_hooks.hook_wound)
+    if w^.as_weapon.w_autohit then
+      return natt
+    else
+      rollToHit src w tgt natt (w^.as_weapon.w_hooks.hook_hit)
 
-    let totalMW = mconcat [mw | (mw, _, _, _) <- woundEffs]
+rollToHit :: IsWeapon w => Model -> w -> Model -> Int -> [HitHook] -> Prob Int
+rollToHit src w tgt natt hooks =
+    case hooks of
+      [] -> binomial natt pHit
 
-    let totalWound = nwound + sum [nextra | (_, nextra, _, _) <- woundEffs]
+      [RollHook minRoll eff] -> do
+        nhit <- binomial natt pHit
+        neff <- binomial nhit $ min 1 (probOf (>= minRoll) (hitRoll src w tgt) / pHit)
+        nextra <- resolveHitHook src w tgt neff eff []
+        return (nhit + nextra)
 
-    nunsaved <- binomial (totalWound - sum [neff | (_, _, neff, _) <- woundEffs]) $ probFailSave w tgt
-
-    let unsaved = (w^.as_weapon, nunsaved)
-
-    unsavedEffs <-
-      forM woundEffs $ \(_, _, neff, effw) -> do
-        nunsavedEff <- binomial neff $ probFailSave (w & as_weapon .~ effw) tgt
-        return (effw, nunsavedEff)
-
-    let unsavedHits = [hit | hit@(_, n) <- unsaved:unsavedEffs, n > 0]
-
-    return (TotalUnsavedWounds unsavedHits totalMW)
+      _ ->
+        -- NOTE: evaluated once and then summed n times
+        sumIID natt $ do
+          k <- hitRoll src w tgt
+          let base = if doesHit src w tgt k then 1 else 0
+          extra <- sumProbs $ resolveHooks (resolveHitHook src w tgt 1) hooks k
+          return (base + extra)
   where
-    pHit :: QQ
     pHit = probHit src w tgt
 
-    rollToHit :: Int -> [HitHook] -> Prob Int
-    rollToHit natt hooks = do
-      nhits     <- binomial natt pHit
-      nextraHit <- sumProbs $ getAllExtraHits nhits [] hooks
-      return (nhits + nextraHit)
+rollWounds :: IsWeapon w => Model -> w -> Model -> Int -> Prob (TotalWounds Weapon)
+rollWounds src w tgt nhit =
+    rollToWound src w tgt nhit (w^.as_weapon.w_hooks.hook_wound)
 
-    getAllExtraHits :: Int -> [HitHook] -> [HitHook] -> [Prob Int]
-    getAllExtraHits nhits _         []           = []
-    getAllExtraHits nhits prevHooks (hook:hooks) =
-      let phit = getExtraHits nhits (prevHooks ++ hooks) hook
-          phits = getAllExtraHits nhits (hook:prevHooks) hooks
-      in  phit : phits
+rollWounds' :: IsWeapon w => Model -> w -> Model -> Int -> (Int, Prob (TotalWounds Weapon))
+rollWounds' src w tgt nhit =
+    rollToWound' src w tgt nhit (w^.as_weapon.w_hooks.hook_wound)
 
-    getExtraHits :: Int -> [HitHook] -> HitHook -> Prob Int
-    getExtraHits nhits otherHooks hook = do
-      -- FIXME: not exactly correct (should be ok on average) if there is more
-      -- than one hook: it produces impossible events, such as one hook firing
-      -- on a 6+ and another not firing even though both depend on the same die
-      -- roll
-      -- TODO: should be fixed by case analysis on previous eff rolls + total probabilities
-      -- but it could become too slow
-      let minRoll = hook^.hook_minRoll - hitMods src w tgt
-      nsuccesses <- binomial nhits $ probOf (>= minRoll) $ given (doesHit src w tgt) d6
+rollToWound :: IsWeapon w => Model -> w -> Model -> Int -> [WoundHook] -> Prob (TotalWounds Weapon)
+rollToWound src w tgt nhit hooks =
+    case rollToWound' src w tgt nhit hooks of
+      (mult, pwounds) -> foldIID mult pwounds
 
-      case hook^.hook_eff of
-          HitHookExtraHits    extraHits -> return (extraHits * nsuccesses)
-          HitHookExtraAttacks extraAtts -> rollToHit extraAtts otherHooks
+rollToWound' :: IsWeapon w => Model -> w -> Model -> Int -> [WoundHook] -> (Int, Prob (TotalWounds Weapon))
+rollToWound' src w tgt nhit hooks = do
+    case hooks of
+      [] -> withMult 1 $ do
+        nwound <- binomial nhit pWound
+        let regularWounds = TotalWounds mempty (SortedList.singleton (Wounds nwound (w^.as_weapon)))
+        return regularWounds
 
-    pWound :: QQ
+      [RollHook minRoll eff] -> withMult 1 $ do
+        nwound <- binomial nhit pWound
+        neff   <- binomial nwound $ min 1 (probOf (>= minRoll) (woundRoll src w tgt) / pWound)
+        extraW <- resolveWoundHook src w tgt neff eff []
+
+        let regularWounds = TotalWounds mempty (SortedList.singleton (Wounds nwound (w^.as_weapon)))
+        return (regularWounds <> extraW)
+
+      _ -> withMult nhit $ do
+          k <- woundRoll src w tgt
+          extra <- foldProbs $ resolveHooks (resolveWoundHook src w tgt 1) hooks k
+
+          if doesWound src w tgt k then
+            let regularWound = TotalWounds mempty (SortedList.singleton (Wounds 1 (w^.as_weapon)))
+            in  return (regularWound <> extra)
+          else
+            return extra
+  where
     pWound = probWound src w tgt
 
-    getWoundEffs :: Int -> [WoundHook] -> [WoundHook] -> Prob [(MortalWounds, Int, Int, Weapon)]
-    getWoundEffs nwound _         []           = return []
-    getWoundEffs nwound prevHooks (hook:hooks) = do
-      woundEff  <- getWoundEff  nwound (prevHooks ++ hooks) hook
-      woundEffs <- getWoundEffs nwound (hook:prevHooks) hooks
-      return (woundEff ++ woundEffs)
-
-    getWoundEff :: Int -> [WoundHook] -> WoundHook -> Prob [(MortalWounds, Int, Int, Weapon)]
-    getWoundEff nwound otherHooks hook = do
-      -- FIXME: not exactly correct (should be ok on average) if there is more
-      -- than one hook: it produces impossible events, such as one hook firing
-      -- on a 6+ and another not firing even though both depend on the same die
-      -- roll
-      -- TODO: should be fixed by case analysis on previous eff rolls + total probabilities,
-      -- but it could become too slow
-      let minRoll = hook^.hook_minRoll - woundMods src w
-      nsuccesses <- binomial nwound $ probOf (>= minRoll) $ given (doesWound src w tgt) d6
-
-      case hook^.hook_eff of
-          WoundHookExtraAttacks natt -> do
-            nhit <- rollToHit (natt * nsuccesses) (w^.as_weapon.w_hooks.hook_hit)
-            nwound' <- binomial nhit pWound
-            woundEffs <- getWoundEffs nwound' [] otherHooks
-            return $ (MortalWounds 0, nwound', 0, w^.as_weapon) : woundEffs
-          WoundHookExtraHits nhit -> do
-            nwound' <- binomial (nhit * nsuccesses) pWound
-            woundEffs <- getWoundEffs nwound' [] otherHooks
-            return $ (MortalWounds 0, nwound', 0, w^.as_weapon) : woundEffs
-          WoundHookExtraWounds nwound' -> do
-            return [(MortalWounds 0, nwound' * nsuccesses, 0, w^.as_weapon)]
-          WoundHookMortalWounds pmw -> do
-            mw <- sumProbs (replicate nsuccesses pmw)
-            return [(MortalWounds mw, 0, 0, w^.as_weapon)]
-          WoundHookMortalDamage pmw -> do
-            mw <- sumProbs (replicate nsuccesses pmw)
-            return [(MortalWounds mw, -nsuccesses, 0, w^.as_weapon)]
-          WoundHookModWeapon w' -> do
-            return [(MortalWounds 0, 0, nsuccesses, w')]
+    withMult !n !p = (n, p)
 
 
-shrinkWounds :: [(Weapon, Int)] -> [(Weapon, Int)]
-shrinkWounds = groupWith (equivDmg `on` fst) totalWounding . sortBy (compare `on` fst)
+resolveHooks :: Show a => (eff -> [RollHook eff] -> Prob a) -> [RollHook eff] -> Int -> [Prob a]
+resolveHooks resolveEff = go []
   where
-    equivDmg :: Weapon -> Weapon -> Bool
-    equivDmg = (==) -- TODO weaken
+    go _         []                                      _ = []
+    go prevHooks (hook@(RollHook minRoll eff):nextHooks) rollValue
+      | minRoll <= rollValue = resolveEff eff (prevHooks ++ nextHooks) : go (hook:prevHooks) nextHooks rollValue
+      | otherwise            = go (hook:prevHooks) nextHooks rollValue
 
-    totalWounding :: (Weapon, Int) -> [(Weapon, Int)] -> (Weapon, Int)
-    totalWounding (w, nw) wnws =
-        let !nw' = nw + sum (map snd wnws)
-        in  (w, nw')
+resolveHitHook :: IsWeapon w => Model -> w -> Model -> Int -> HitHookEff -> [HitHook] -> Prob Int
+resolveHitHook src w tgt nsuccesses eff otherHooks =
+    case eff of
+      HitHookExtraHits    nhits -> return (nsuccesses * nhits)
+      HitHookExtraAttacks natts -> rollToHit src w tgt (nsuccesses * natts) otherHooks
 
+resolveWoundHook :: IsWeapon w => Model -> w -> Model -> Int -> WoundHookEff -> [WoundHook] -> Prob (TotalWounds Weapon)
+resolveWoundHook src w tgt nsuccesses eff otherHooks =
+    case eff of
+      WoundHookExtraAttacks natt -> do
+        nhit <- rollToHit src w tgt (natt * nsuccesses) (w^.as_weapon.w_hooks.hook_hit)
+        rollToWound src w tgt nhit otherHooks
+      WoundHookExtraHits nhit ->
+        rollToWound src w tgt (nhit * nsuccesses) otherHooks
+      WoundHookExtraWounds nwound ->
+        return $ TotalWounds mempty (SortedList.singleton (Wounds (nwound * nsuccesses) (w^.as_weapon)))
+      WoundHookMortalWounds pmw ->
+        return $ TotalWounds (MortalWounds (sumIID nsuccesses pmw)) mempty
+      WoundHookMortalDamage pmw ->
+        return $ TotalWounds (MortalWounds (sumIID nsuccesses pmw))
+                             (SortedList.singleton (Wounds (-nsuccesses) (w^.as_weapon)))
+      WoundHookModWeapon w' -> do
+        return $ TotalWounds mempty (SortedList.singleton (Wounds nsuccesses w'))
+  where
+    pWound = probWound src w tgt
 
-woundingResult :: forall w. IsWeapon w => [(Model, w)] -> Model -> Prob TotalUnsavedWounds
-woundingResult srcws tgt =
-    let unsavedResult :: (Model, w) -> Prob TotalUnsavedWounds
-        unsavedResult (src, w) = unsavedWounds src w tgt
+unsavedDamage :: IsWeapon w => Model -> w -> Model -> Prob (TotalWounds DamageRoll)
+unsavedDamage src w tgt = do
+    nhit <- rollHits src w tgt
 
-        totalUnsaved :: Prob TotalUnsavedWounds
-        totalUnsaved = foldProbs (map unsavedResult (shrinkModels srcws))
-    in
-        fmap (total_wounding_hits %~ shrinkWounds) totalUnsaved
+    let (mult, woundp) = rollWounds' src w tgt nhit
 
+    let unsavedp = do
+          TotalWounds mw whits <- woundp
 
-applyQuantumShielding :: Int -> Prob Int
+          unsavedDmg <-
+            forM (SortedList.toAscList whits) $ \(Wounds nwound w') -> do
+              nunsaved <- binomial nwound $ probFailSave (w & as_weapon .~ w') tgt
+              return (Wounds nunsaved (w'^.w_dmg))
+
+          let unsavedDmg' = SortedList.fromAscList [wnd | wnd@(Wounds n _) <- unsavedDmg, n > 0]
+
+          return (TotalWounds mw unsavedDmg')
+
+    foldIID mult unsavedp
+
+shrinkDamage :: SortedList (Wounds DamageRoll) -> SortedList (Wounds DamageRoll)
+shrinkDamage = id
+
+applyQuantumShielding :: Int -> DamageRoll
 applyQuantumShielding 0   = return 0
 applyQuantumShielding 1   = return 1
 applyQuantumShielding dmg = do
@@ -190,67 +223,96 @@ applyQuantumShielding dmg = do
     else
         return dmg
 
-applyDamageModifier :: CombatType -> Model -> Int -> Int
-applyDamageModifier ct tgt 0   = 0
-applyDamageModifier ct tgt dmg = max 1 $ applyIntMod (tgt^.model_mods_for ct.mod_recvdmg) dmg
-
-foldWounds :: forall a. (Ord a, Show a)
-           => CombatType
-           -> Model
-           -> (a -> Int -> a)
-           -> a
-           -> TotalUnsavedWounds
-           -> Prob a
-foldWounds ct tgt f start totalUnsaved = do
-    let (TotalUnsavedWounds wounds (MortalWounds mw)) = totalUnsaved
-
-        dmgSeq :: [Prob Int]
-        dmgSeq = concatMap (\(w, nwounded) -> replicate nwounded (w^.w_dmg)) wounds
-               & map (dmgAfterFnp . dmgAfterDmgMods . dmgAfterQuantumShielding)
-
-    mw' <- woundsAfterFnp mw
-    acc <- foldlProbs' f start dmgSeq
-    let acc' = foldl' f acc (replicate mw' 1)
-
-    return acc'
+applyFnp :: Int -> Int -> DamageRoll
+applyFnp = \fnp nw ->
+    if fnp >= 7 || nw == 0 then
+        return nw
+    else
+        fmap (nw -) (ignoredWounds fnp nw)
   where
-    dmgAfterQuantumShielding :: Prob Int -> Prob Int
+    ignoredWounds :: Int -> Int -> DamageRoll
+    ignoredWounds fnp nw = cachedIgnoredWounds !! fnp !! nw
+
+    cachedIgnoredWounds :: [[DamageRoll]]
+    cachedIgnoredWounds = [[binomial nw (prob_d6_gt fnp) | nw <- [0..]] | fnp <- [0..7]]
+
+effectiveDamage :: CombatType -> Model -> TotalWounds DamageRoll -> TotalWounds DamageRoll
+effectiveDamage ct tgt unsaved =
+    let (TotalWounds (MortalWounds mw) wounds) = unsaved
+
+        mw' :: DamageRoll
+        mw' = dmgAfterFnp mw
+
+        modifyDamageRoll :: DamageRoll -> DamageRoll
+        modifyDamageRoll = dmgAfterFnp . dmgAfterDmgMods . dmgAfterQuantumShielding
+
+        wounds' :: SortedList (Wounds DamageRoll)
+        wounds' = SortedList.map (\(Wounds nwounded pdmg) -> Wounds nwounded (modifyDamageRoll pdmg))
+                                 wounds
+    in
+        TotalWounds (MortalWounds mw') wounds'
+  where
+    dmgAfterQuantumShielding :: DamageRoll -> DamageRoll
     dmgAfterQuantumShielding pdmg
       | tgt^.model_quantumShielding = applyQuantumShielding =<< pdmg
       | otherwise                   = pdmg
 
-    dmgAfterDmgMods :: Prob Int -> Prob Int
-    dmgAfterDmgMods pdmg
-      | tgt^.model_mods_for ct.mod_recvdmg == NoMod = pdmg
-      | otherwise                                   = fmap (applyDamageModifier ct tgt) pdmg
+    dmgAfterDmgMods :: DamageRoll -> DamageRoll
+    dmgAfterDmgMods pdmg =
+        case tgt^.model_mods_for ct.mod_recvdmg of
+          NoMod -> pdmg
+          m     -> fmap (\dmg -> if dmg <= 0 then dmg else max 1 (applyIntMod m dmg))
+                        pdmg
 
-    dmgAfterFnp :: Prob Int -> Prob Int
-    dmgAfterFnp pdmg = woundsAfterFnp =<< pdmg
+    dmgAfterFnp :: DamageRoll -> DamageRoll
+    dmgAfterFnp pdmg = applyFnp (tgt^.model_fnp) =<< pdmg
 
-    woundsAfterFnp :: Int -> Prob Int
-    woundsAfterFnp 0       = return 0
-    woundsAfterFnp wounds
-      | tgt^.model_fnp >= 7 = return wounds
-      | otherwise           = do
-          ignoredWounds <- cachedFnpIgnoredWounds !! wounds
-          return (wounds - ignoredWounds)
 
-    cachedFnpIgnoredWounds :: [Prob Int]
-    cachedFnpIgnoredWounds = [binomial dmg (prob_d6_gt (tgt^.model_fnp)) | dmg <- [0..]]
+evaluateAttack :: IsWeapon w => CombatType -> Model -> w -> Model -> Prob (TotalWounds DamageRoll)
+evaluateAttack ct src w tgt = fmap (effectiveDamage ct tgt) (unsavedDamage src w tgt)
 
-sumWounds :: CombatType -> Model -> TotalUnsavedWounds -> Prob Int
-sumWounds ct tgt = foldWounds ct tgt (+) 0
+evaluateAttacks :: IsWeapon w => CombatType -> [(Model, w)] -> Model -> [Prob (TotalWounds DamageRoll)]
+evaluateAttacks ct srcws tgt = map (\(src, w) -> evaluateAttack ct src w tgt) (shrinkModels srcws)
 
-sumWoundsMax :: CombatType -> Model -> Int -> TotalUnsavedWounds -> Prob Int
-sumWoundsMax ct tgt maxWounds = foldWounds ct tgt f 0
+
+foldWounds :: forall a. Ord a => (a -> Int -> a) -> a -> [Prob (TotalWounds DamageRoll)] -> Prob a
+foldWounds f = foldlM' (\a wnd -> consumeRound a |=<<| wnd)
   where
-    f acc wnd
-      | acc + wnd >= maxWounds = maxWounds
-      | otherwise              = acc + wnd
+    consumeRound :: a -> TotalWounds DamageRoll -> Prob a
+    consumeRound z (TotalWounds (MortalWounds pmw) weaponDmg) = do
+      mw <- pmw
+      z' <- consumeWounds z (Wounds mw (return 1))
+      foldlM' consumeWounds z' (SortedList.toAscList weaponDmg)
 
-slainModels :: CombatType -> Model -> TotalUnsavedWounds -> Prob QQ
-slainModels ct tgt =
-    fmap summarize . foldWounds ct tgt woundModels (0 :*: 0)
+    consumeWounds :: a -> Wounds DamageRoll -> Prob a
+    consumeWounds z (Wounds n dmg) = foldlProbs' f z (replicate n dmg)
+
+
+sumWoundsMax :: Int -> [Prob (TotalWounds DamageRoll)] -> DamageRoll
+sumWoundsMax maxWounds = top . sumProbs . map (top . sumRound =<<)
+  where
+    top :: DamageRoll -> DamageRoll
+    top | maxWounds > 0 = fmapProbMonotone (min maxWounds)
+        | otherwise     = id
+
+    sumTop :: Int -> Int -> Int
+    sumTop | maxWounds > 0 = \x y -> min maxWounds (x+y)
+           | otherwise     = (+)
+
+    sumRound :: TotalWounds DamageRoll -> DamageRoll
+    sumRound (TotalWounds (MortalWounds pmw) weaponDmg) =
+        sumProbs [pmw, sumWeaponDmg weaponDmg]
+
+    sumWeaponDmg :: SortedList (Wounds DamageRoll) -> DamageRoll
+    sumWeaponDmg =
+        sumProbs . map (\(Wounds n pdmg) -> foldAssocIID sumTop 0 n pdmg) . SortedList.toAscList
+
+sumWounds :: [Prob (TotalWounds DamageRoll)] -> DamageRoll
+sumWounds = sumWoundsMax 0
+
+slainModels :: Model -> [Prob (TotalWounds DamageRoll)] -> Prob QQ
+slainModels tgt =
+    fmap summarize . foldWounds woundModels (0 :*: 0)
   where
     woundModels :: (Int :*: Int) -> Int -> (Int :*: Int)
     woundModels (kills :*: wounds) dmg
@@ -270,6 +332,7 @@ data EquippedModel = EquippedModel
   , _em_ccw      :: CCWeapon
   , _em_rw       :: [RngWeapon]
   }
+  deriving (Eq, Ord, Show)
 
 makeLenses ''EquippedModel
 
@@ -314,20 +377,20 @@ twoHighest a b c
 numWounds :: CombatType -> [EquippedModel] -> Model -> Prob Int
 numWounds ct srcs tgt =
     case ct of
-      Melee  -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
-      Ranged -> sumWounds ct tgt |=<<| woundingResult [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
+      Melee  -> sumWounds $ evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
+      Ranged -> sumWounds $ evaluateAttacks ct [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
 
 numWoundsMax :: CombatType -> [EquippedModel] -> Model -> Int -> Prob Int
 numWoundsMax ct srcs tgt maxWounds =
     case ct of
-      Melee  -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
-      Ranged -> sumWoundsMax ct tgt maxWounds |=<<| woundingResult [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
+      Melee  -> sumWoundsMax maxWounds $ evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
+      Ranged -> sumWoundsMax maxWounds $ evaluateAttacks ct [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
 
 numSlainModels :: CombatType -> [EquippedModel] -> Model -> Prob QQ
 numSlainModels ct srcs tgt =
     case ct of
-      Melee  -> slainModels ct tgt |=<<| woundingResult [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
-      Ranged -> slainModels ct tgt |=<<| woundingResult [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
+      Melee  -> slainModels tgt $ evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
+      Ranged -> slainModels tgt $ evaluateAttacks ct [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
 
 numSlainModelsInt :: CombatType -> [EquippedModel] -> Model -> Prob Int
 numSlainModelsInt ct srcs tgt = fmap floor $ numSlainModels ct srcs tgt

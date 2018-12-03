@@ -10,15 +10,17 @@ import Prelude hiding (Functor(..), Monad(..))
 import Data.Monoid ((<>))
 import Control.Lens
 
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics.Common
+import W40K.Core.Util (groupWith)
 
 data CCWeapon = CCWeapon
   { _ccw_strMod    :: IntMod
   , _ccw_attBonus  :: IntMod
   , _ccw_weapon    :: Weapon
   }
-  deriving Eq
+  deriving (Eq, Ord, Show)
 
 makeLenses ''CCWeapon
 
@@ -50,12 +52,14 @@ instance IsWeapon CCWeapon where
     weaponAttacks src w = return $ applyIntMod (w^.ccw_attBonus) (src^.model_att)
 
     hitMods = ccHitMods
+    hitRoll = ccHitRoll
     doesHit = ccDoesHit
-    probHit = ccProbHit
+    -- probHit = ccProbHit
 
     woundMods = ccWoundMods
+    woundRoll = ccWoundRoll
     doesWound = ccDoesWound
-    probWound = ccProbWound
+    -- probWound = ccProbWound
 
     probSave = ccProbSave
 
@@ -68,17 +72,16 @@ ccHitMods src w tgt =
      + w^.ccw_mods.mod_tohit
      + tgt^.model_cc_mods.mod_tobehit
 
+-- autohit not taken into account because there is no hit roll for auto-hitting weapons (FAQ'd)
 ccDoesHit :: Model -> CCWeapon -> Model -> Int -> Bool
-ccDoesHit src w tgt = (>=! src^.model_ws - ccHitMods src w tgt)
+ccDoesHit src w _ =
+    (>=! src^.model_ws)
 
-ccHitRoll :: Model -> CCWeapon -> Model -> Prob Bool
+ccHitRoll :: Model -> CCWeapon -> Model -> Prob Int
 ccHitRoll src w tgt =
-    roll rerolls d6 (>=! src^.model_ws) (ccDoesHit src w tgt)
+    skillRoll rerolls (src^.model_ws) (ccHitMods src w tgt)
   where
     rerolls = src^.model_cc_mods.mod_rrtohit <> w^.ccw_mods.mod_rrtohit
-
-ccProbHit :: Model -> CCWeapon -> Model -> QQ
-ccProbHit src w tgt = probTrue (ccHitRoll src w tgt)
 
 
 ccWoundMods :: Model -> CCWeapon -> Int
@@ -86,15 +89,15 @@ ccWoundMods src w = src^.model_cc_mods.mod_towound + w^.ccw_mods.mod_towound
 
 ccDoesWound :: Model -> CCWeapon -> Model -> Int -> Bool
 ccDoesWound src w tgt =
-    (>=! requiredRoll - ccWoundMods src w)
+    (>=! requiredRoll)
   where
     requiredRoll = requiredWoundRoll (w^.ccw_weapon)
                                      (applyIntMod (w^.ccw_strMod) $ src^.model_str)
                                      tgt
 
-ccWoundRoll :: Model -> CCWeapon -> Model -> Prob Bool
+ccWoundRoll :: Model -> CCWeapon -> Model -> Prob Int
 ccWoundRoll src w tgt =
-    roll rerolls d6 (>=! requiredRoll) (ccDoesWound src w tgt)
+    skillRoll rerolls requiredRoll (ccWoundMods src w)
   where
     rerolls = src^.model_cc_mods.mod_rrtowound <> w^.ccw_mods.mod_rrtowound
 
@@ -102,8 +105,6 @@ ccWoundRoll src w tgt =
                                      (applyIntMod (w^.ccw_strMod) (src^.model_str))
                                      tgt
 
-ccProbWound :: Model -> CCWeapon -> Model -> QQ
-ccProbWound src w tgt = probTrue (ccWoundRoll src w tgt)
 
 ccSaveArmor :: CCWeapon -> Model -> Prob Bool
 ccSaveArmor ccw tgt =

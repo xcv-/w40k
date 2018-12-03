@@ -23,49 +23,54 @@ import qualified W40K.Data.Tyranids     as Tyranids
 
 
 main = do
-    let tgts = [TSons.daemonPrinceModel, TSons.otherworldlyPresence TSons.daemonPrinceModel]
 
-    analysisToSvgFile "/tmp/output.svg"
-      [ analysisConfig' ByTarget (NumWoundsMax RevDistributionPlot) tgts $
+    analysisToSvgFile "/tmp/test-foldwounds.svg"
+      [ analysisConfig' ByTarget (SlainModels RevDistributionPlot) [AdMech.infiltratorModel] $
+          setCombatType Ranged
+              [ ("MSU psilencer purgation squad",
+                  GK.purgatorSquad GK.psilencer)
+              , ("MSU psilencer purgation squad (moving)",
+                  with moving
+                       (GK.purgatorSquad GK.psilencer))
+              , ("MSU psilencer purgation squad (psyonslaught)",
+                  with GK.psyOnslaughtAmmo
+                       (GK.purgatorSquad GK.psilencer))
+              , ("MSU psilencer purgation squad (moving) (psyonslaught)",
+                  with (moving . GK.psyOnslaughtAmmo)
+                       (GK.purgatorSquad GK.psilencer))
+              ]
+      , analysisConfig' ByTarget (SlainModels RevDistributionPlot) [AdMech.infiltratorModel] $
           setCombatType Melee
-            [ ("5 conqueror + machine might taser infiltrators",
-                    with (AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
-                         (AdMech.taserGoadInfiltrators 5))
-            , ("5 conqueror + remorseless fist taser infiltrators",
-                    with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
-                         (AdMech.taserGoadInfiltrators 5))
-            , ("5 conqueror + machine might blades ruststakers",
-                    with (AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
-                         (AdMech.bladesRuststalkers 5))
-            , ("5 conqueror + remorseless fist blades ruststakers",
-                    with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
-                         (AdMech.bladesRuststalkers 5))
-            , ("5 conqueror + machine might razor+claw ruststakers",
-                    with (AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
-                         (AdMech.razorClawRuststalkers 5))
-            , ("5 conqueror + remorseless fist razor+claw ruststakers",
-                    with (AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
-                         (AdMech.razorClawRuststalkers 5))
-            ]
-      , analysisConfig' ByTarget (NumWoundsMax RevDistributionPlot) tgts $
+              [ ("MSU strike squad",
+                  GK.strikeSquad 5 GK.twoFalchions)
+              , ("MSU terminator squad",
+                  GK.terminatorSquad 5 GK.twoFalchions)
+              , ("MSU HH paladins",
+                  with GK.hammerhand
+                       (GK.paladinSquad 3 GK.halberd))
+              ]
+      ]
+
+    analysisToSvgFile "/tmp/test-numwoundsmax.svg"
+      [ analysisConfig' ByTarget (NumWoundsMax RevDistributionPlot) [AdMech.radSaturation TSons.daemonPrinceModel, TSons.daemonPrinceModel] $
           setCombatType Melee
             [ ("5 ryza conqueror + machine might taser infiltrators",
-                    with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
-                         (AdMech.taserGoadInfiltrators 5))
+                with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                     (AdMech.taserGoadInfiltrators 5))
             , ("5 ryza conqueror + remorseless fist taser infiltrators",
-                    with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
-                         (AdMech.taserGoadInfiltrators 5))
+                with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                     (AdMech.taserGoadInfiltrators 5))
             , ("5 ryza conqueror + machine might blades ruststakers",
-                    with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
-                         (AdMech.bladesRuststalkers 5))
+                with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                     (AdMech.bladesRuststalkers 5))
             , ("5 ryza conqueror + remorseless fist blades ruststakers",
-                    with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
-                         (AdMech.bladesRuststalkers 5))
+                with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                     (AdMech.bladesRuststalkers 5))
             , ("5 ryza conqueror + machine might razor+claw ruststakers",
-                    with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
-                         (AdMech.razorClawRuststalkers 5))
+                with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.invocationOfMachineMight)
+                     (AdMech.razorClawRuststalkers 5))
             , ("5 ryza conqueror + remorseless fist razor+claw ruststakers",
-                    with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
-                         (AdMech.razorClawRuststalkers 5))
+                with (AdMech.ryzaDogma . AdMech.conquerorDoctrinaImperative . AdMech.chantOfTheRemorselessFist)
+                     (AdMech.razorClawRuststalkers 5))
             ]
       ]

@@ -4,6 +4,7 @@ import Prelude hiding (Functor(..), Monad(..))
 
 import Control.Lens
 
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Core.Chart
@@ -44,7 +45,7 @@ stormravenAvTest = andAuras $
     setCombatType Ranged
       [ ("SR lascannons, melta",                with closeEnoughRange [Marines.stormravenWith $ [twin multimelta] ++ two [lascannon]])
       , ("SR lascannons, melta, stormstrikes",  with closeEnoughRange [Marines.fullAvStormraven])
-      , ("SR plasma, melta, stormstrikes",      with closeEnoughRange [Marines.stormravenWith $ two [Marines.stormstrike] ++ two [twin heavyPlasmaCannon] ++ two [twin multimelta]])
+      , ("SR plasma, melta, stormstrikes",      with closeEnoughRange [Marines.stormravenWith $ two [Marines.stormstrike] ++ two [twin (plasmaCannon True)] ++ two [twin multimelta]])
       , ("SR melta, stormstrikes",              with closeEnoughRange [Marines.meltaStormraven])
       ]
 

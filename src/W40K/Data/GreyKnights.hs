@@ -7,6 +7,7 @@ import Data.Function (on)
 import Data.List (maximumBy)
 import Control.Lens
 
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Core.Psychic
@@ -232,12 +233,12 @@ psycannon = bolter
 
 incinerator :: RngWeapon
 incinerator = bolter
-  & rw_shots   .~ d6
-  & rw_str     .~ 6
-  & rw_class   .~ Assault
-  & rw_autohit .~ True
-  & rw_ap      .~ -1
-  & rw_name    .~ "incinerator"
+  & rw_shots            .~ d6
+  & rw_str              .~ 6
+  & rw_class            .~ Assault
+  & rw_weapon.w_autohit .~ True
+  & rw_ap               .~ -1
+  & rw_name             .~ "incinerator"
 
 heavyPsycannon :: RngWeapon
 heavyPsycannon = psycannon

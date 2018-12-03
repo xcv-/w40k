@@ -2,7 +2,7 @@
 module W40K.Core.Mechanics.Ranged
   ( RngWeaponClass (..)
   , RngWeapon (..)
-  , rw_shots, rw_str, rw_class, rw_autohit, rw_weapon, rw_melta
+  , rw_shots, rw_str, rw_class, rw_weapon, rw_melta
   , rw_ap, rw_dmg, rw_mods, rw_name
   , null_rw
   ) where
@@ -11,22 +11,22 @@ import Prelude hiding (Functor(..), Monad(..))
 import Data.Monoid ((<>))
 import Control.Lens
 
-import Debug.Trace
-
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics.Common
+import W40K.Core.Util (groupWith)
 
-data RngWeaponClass = Heavy | Grenade | RapidFire | Pistol | Assault deriving Eq
+data RngWeaponClass = Heavy | Grenade | RapidFire | Pistol | Assault
+  deriving (Eq, Ord, Show)
 
 data RngWeapon = RngWeapon
   { _rw_shots   :: Prob Int
   , _rw_str     :: Int
   , _rw_class   :: RngWeaponClass
-  , _rw_autohit :: Bool
   , _rw_weapon  :: Weapon
   , _rw_melta   :: Bool
   }
-  deriving Eq
+  deriving (Eq, Ord, Show)
 
 makeLenses ''RngWeapon
 
@@ -47,7 +47,6 @@ null_rw = RngWeapon
   { _rw_shots   = return 0
   , _rw_str     = 0
   , _rw_class   = Assault
-  , _rw_autohit = False
   , _rw_melta   = False
   , _rw_weapon  = basicWeapon "(null)"
   }
@@ -57,12 +56,14 @@ instance IsWeapon RngWeapon where
     weaponAttacks _ w = w^.rw_shots
 
     hitMods = rngHitMods
+    hitRoll = rngHitRoll
     doesHit = rngDoesHit
-    probHit = rngProbHit
+    -- probHit = rngProbHit
 
     woundMods = rngWoundMods
+    woundRoll = rngWoundRoll
     doesWound = rngDoesWound
-    probWound = rngProbWound
+    -- probWound = rngProbWound
 
     probSave = rngProbSave
 
@@ -80,40 +81,34 @@ rngHitMods src w tgt =
       | w^.rw_class == Heavy && src^.model_moved && not (src^.model_ignoreHeavy) = -1
       | otherwise                                                                = 0
 
+-- autohit not taken into account because there is no hit roll for auto-hitting weapons (FAQ'd)
 rngDoesHit :: Model -> RngWeapon -> Model -> Int -> Bool
-rngDoesHit src w tgt
-  | w^.rw_autohit = const True
-  | otherwise     = (>=! src^.model_bs - rngHitMods src w tgt)
+rngDoesHit src w _ =
+    (>=! src^.model_bs)
 
-rngHitRoll :: Model -> RngWeapon -> Model -> Prob Bool
+rngHitRoll :: Model -> RngWeapon -> Model -> Prob Int
 rngHitRoll src w tgt =
-    roll rerolls d6 (>=! src^.model_bs) (rngDoesHit src w tgt)
+    skillRoll rerolls (src^.model_bs) (rngHitMods src w tgt)
   where
     rerolls = src^.model_rng_mods.mod_rrtohit <> w^.rw_mods.mod_rrtohit
-
-rngProbHit :: Model -> RngWeapon -> Model -> QQ
-rngProbHit src w tgt = probTrue (rngHitRoll src w tgt)
 
 
 rngWoundMods :: Model -> RngWeapon -> Int
 rngWoundMods src w = src^.model_rng_mods.mod_towound + w^.rw_mods.mod_towound
 
 rngDoesWound :: Model -> RngWeapon -> Model -> Int -> Bool
-rngDoesWound src w tgt =
-    (>=! requiredRoll - rngWoundMods src w)
+rngDoesWound _ w tgt =
+    (>=! requiredRoll)
   where
     requiredRoll = requiredWoundRoll (w^.rw_weapon) (w^.rw_str) tgt
 
-rngWoundRoll :: Model -> RngWeapon -> Model -> Prob Bool
+rngWoundRoll :: Model -> RngWeapon -> Model -> Prob Int
 rngWoundRoll src w tgt =
-    roll rerolls d6 (>=! requiredRoll) (rngDoesWound src w tgt)
+    skillRoll rerolls requiredRoll (rngWoundMods src w)
   where
     rerolls = src^.model_rng_mods.mod_rrtowound <> w^.rw_mods.mod_rrtowound
 
     requiredRoll = requiredWoundRoll (w^.rw_weapon) (w^.rw_str) tgt
-
-rngProbWound :: Model -> RngWeapon -> Model -> QQ
-rngProbWound src w tgt = probTrue (rngWoundRoll src w tgt)
 
 
 rngSaveArmor :: RngWeapon -> Model -> Prob Bool
@@ -140,12 +135,6 @@ rngProbSave rw tgt =
     max (probTrue (rngSaveArmor rw tgt))
         (probTrue (rngSaveInv   rw tgt))
 
--- rngUnsavedWounds :: Model -> RngWeapon -> Model -> Prob Int
--- rngUnsavedWounds src w tgt = do
---     natt    <- w^.rw_shots
---     nhits   <- binomial natt  $ probTrue $ rngHit src w tgt
---     nwounds <- binomial nhits $ probTrue $ rngWound src w tgt
---     binomial nwounds $ probFalse $ rngSave (w^.rw_weapon) tgt
 
 rngShrinkModels :: [(Model, RngWeapon)] -> [(Model, RngWeapon)]
 rngShrinkModels = groupWith eqrel sumShots

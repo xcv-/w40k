@@ -15,13 +15,16 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     W40K.Core.Prob,
-                       W40K.Core.Chart,
+  exposed-modules:     W40K.Core.Chart,
+                       W40K.Core.ConstrMonad,
+                       W40K.Core.Prob,
                        W40K.Core.Mechanics,
                        W40K.Core.Mechanics.Common,
                        W40K.Core.Mechanics.Melee,
                        W40K.Core.Mechanics.Ranged,
                        W40K.Core.Psychic,
+                       W40K.Core.SortedList,
+                       W40K.Core.Util,
                        W40K.Data.AdMech,
                        W40K.Data.Assassins,
                        W40K.Data.Chaos,
@@ -35,7 +38,7 @@ library
                        W40K.Data.Tau,
                        W40K.Data.ThousandSons,
                        W40K.Data.Tyranids
-  build-depends:       base >= 4.7 && < 5,
+  build-depends:       base >= 4.7 && < 5, ghc-prim,
                        deepseq, parallel,
                        vector, vector-algorithms,
                        MemoTrie,
