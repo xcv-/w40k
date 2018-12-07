@@ -21,8 +21,14 @@ guillimanAura :: Aura
 guillimanAura = noAura & aura_any.mod_rrtohit   .~ RerollFailed
                        & aura_any.mod_rrtowound .~ RerollFailed
 
-telionAbility :: Modifier
-telionAbility = em_model.model_mods.mod_tohit +~ 1
+telionAbility :: Model -> Model
+telionAbility = model_mods.mod_tohit +~ 1
+
+strafingRun :: Model -> Model
+strafingRun = model_mods.mod_tohit +~ 1
+
+interceptorJet :: Model -> Model
+interceptorJet = model_mods.mod_tohit +~ 1
 
 
 -- MODELS
@@ -104,30 +110,43 @@ predator = rhino
   & model_wnd  .~ 11
   & model_name .~ "predator"
 
-repulsor :: Model
-repulsor = landraider
-  & model_save .~  3
-  & model_name .~ "repulsor"
+stormtalon :: Model
+stormtalon = rhino
+  & model_str                  .~ 6
+  & model_tgh                  .~ 6
+  & model_wnd                  .~ 10
+  & model_rng_mods.mod_tobehit .~ -1
+  & model_name                 .~ "stormtalon"
+
+stormhawk :: Model
+stormhawk = stormtalon
+  & model_tgh                  .~ 7
+  & model_rng_mods.mod_rrarmor .~ RerollOnes
+  & model_name                 .~ "stormhawk"
 
 stormraven :: Model
-stormraven = rhino
+stormraven = stormtalon
   & model_str                  .~ 8
   & model_tgh                  .~ 7
   & model_wnd                  .~ 14
-  & model_rng_mods.mod_tobehit .~ -1
   & model_ignoreHeavy          .~ True
   & model_name                 .~ "stormraven"
 
 landraider :: Model
 landraider = rhino
   & model_wnd         .~ 16
-  & model_str         .~  8
-  & model_tgh         .~  8
-  & model_att         .~  6
+  & model_str         .~ 8
+  & model_tgh         .~ 8
+  & model_att         .~ 6
   & model_ld          .~ 9
-  & model_save        .~  2
+  & model_save        .~ 2
   & model_ignoreHeavy .~ True
   & model_name        .~ "landraider"
+
+repulsor :: Model
+repulsor = landraider
+  & model_save .~  3
+  & model_name .~ "repulsor"
 
 
 -- RANGED WEAPONS
@@ -135,7 +154,7 @@ landraider = rhino
 sniperRifle :: RngWeapon
 sniperRifle = bolter
   & rw_class                     .~ Heavy
-  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalWounds (return 1))
+  & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalWounds (return 1))
   & rw_name                      .~ "sniper rifle"
 
 quietusRifle :: RngWeapon
@@ -168,6 +187,10 @@ predatorAutocannon = lascannon
   & rw_ap      .~ -1
   & rw_dmg     .~ return 3
   & rw_name    .~ "predator autocannon"
+
+lastalon :: RngWeapon
+lastalon = twin lascannon
+  & rw_name    .~ "las-talon"
 
 helfrostDestructorDispersed :: RngWeapon
 helfrostDestructorDispersed = lascannon
@@ -219,6 +242,16 @@ landraiderWith :: [RngWeapon] -> EquippedModel
 landraiderWith rw = basicEquippedModel landraider
   & em_rw    .~ rw
   & em_name  .~ "landraider w/ " ++ weaponNames rw
+
+stormtalonWith :: [RngWeapon] -> EquippedModel
+stormtalonWith rw = basicEquippedModel stormtalon
+  & em_rw    .~ rw
+  & em_name  .~ "stormtalon w/ " ++ weaponNames rw
+
+stormhawkWith :: [RngWeapon] -> EquippedModel
+stormhawkWith rw = basicEquippedModel stormhawk
+  & em_rw    .~ rw
+  & em_name  .~ "stormhawk w/ " ++ weaponNames rw
 
 stormravenWith :: [RngWeapon] -> EquippedModel
 stormravenWith rw = basicEquippedModel stormraven

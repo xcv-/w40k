@@ -43,10 +43,10 @@ godhammerAvTest = andAuras $
 stormravenAvTest :: [NamedEqUnit]
 stormravenAvTest = andAuras $
     setCombatType Ranged
-      [ ("SR lascannons, melta",                with closeEnoughRange [Marines.stormravenWith $ [twin multimelta] ++ two [lascannon]])
-      , ("SR lascannons, melta, stormstrikes",  with closeEnoughRange [Marines.fullAvStormraven])
-      , ("SR plasma, melta, stormstrikes",      with closeEnoughRange [Marines.stormravenWith $ two [Marines.stormstrike] ++ two [twin (plasmaCannon True)] ++ two [twin multimelta]])
-      , ("SR melta, stormstrikes",              with closeEnoughRange [Marines.meltaStormraven])
+      [ ("SR lascannons, melta",                with closeEnough [Marines.stormravenWith $ [twin multimelta] ++ two [lascannon]])
+      , ("SR lascannons, melta, stormstrikes",  with closeEnough [Marines.fullAvStormraven])
+      , ("SR plasma, melta, stormstrikes",      with closeEnough [Marines.stormravenWith $ two [Marines.stormstrike] ++ two [twin (plasmaCannon True)] ++ two [twin multimelta]])
+      , ("SR melta, stormstrikes",              with closeEnough [Marines.meltaStormraven])
       ]
 
 hqCcAvTest :: (String, [EquippedModel]) -> [NamedEqUnit]
@@ -86,23 +86,23 @@ smallPaladinCcInfTest = andAuras $ andBanner $
 smallStrikeRngInfTest :: [NamedEqUnit]
 smallStrikeRngInfTest = andAuras $ andPsybolt $
     setCombatType Ranged
-      [ ("5 strikes",                               with (moving.rapidFireRange) $ strikeSquad 5                         nemesisSword)
-      , ("5 strikes (1 psilencer)",                 with (moving.rapidFireRange) $ specialWeaponStrikeSquad5   psilencer nemesisSword)
-      , ("5 strikes (1 psycannon)",                 with (moving.rapidFireRange) $ specialWeaponStrikeSquad5   psycannon nemesisSword)
+      [ ("5 strikes",                               with (moving.rapidFiring) $ strikeSquad 5                         nemesisSword)
+      , ("5 strikes (1 psilencer)",                 with (moving.rapidFiring) $ specialWeaponStrikeSquad5   psilencer nemesisSword)
+      , ("5 strikes (1 psycannon)",                 with (moving.rapidFiring) $ specialWeaponStrikeSquad5   psycannon nemesisSword)
       ]
 
 purifierRngInfTest :: [NamedEqUnit]
 purifierRngInfTest =
     setCombatType Ranged
-      [ ("5 purifiers (2 psilencers)",              with (moving.rapidFireRange) $ specialWeaponPurifierSquad5 psilencer nemesisSword)
-      , ("5 purifiers (2 psycannons)",              with (moving.rapidFireRange) $ specialWeaponPurifierSquad5 psycannon nemesisSword)
+      [ ("5 purifiers (2 psilencers)",              with (moving.rapidFiring) $ specialWeaponPurifierSquad5 psilencer nemesisSword)
+      , ("5 purifiers (2 psycannons)",              with (moving.rapidFiring) $ specialWeaponPurifierSquad5 psycannon nemesisSword)
       ]
 
 purgatorRngInfTest :: [NamedEqUnit]
 purgatorRngInfTest = andAuras $ andPsyOnslaught $
     setCombatType Ranged
-      [ ("5 purgators (4 psilencers)",              with (moving.rapidFireRange) $ purgatorSquad              psilencer)
-      , ("5 purgators (4 psycannons)",              with (moving.rapidFireRange) $ purgatorSquad              psycannon)
+      [ ("5 purgators (4 psilencers)",              with (moving.rapidFiring) $ purgatorSquad              psilencer)
+      , ("5 purgators (4 psycannons)",              with (moving.rapidFiring) $ purgatorSquad              psycannon)
       --, ("5 purgators (stationary) (4 psilencers)",          rapidFiring $ purgatorSquad              psilencer)
       --, ("5 purgators (stationary) (4 psycannons)",          rapidFiring $ purgatorSquad              psycannon)
       ]
@@ -110,17 +110,17 @@ purgatorRngInfTest = andAuras $ andPsyOnslaught $
 largePagkRngInfTest :: [NamedEqUnit]
 largePagkRngInfTest = andAuras $ andPsybolt $
     setCombatType Ranged
-      [ ("10 strikes",                 with (moving.rapidFireRange) $ strikeSquad 10 nemesisSword)
-      -- , ("10 strikes (2 psilencers)",  with (moving.rapidFireRange) $ specialWeaponStrikeSquad10 psilencer nemesisSword)
-      , ("10 strikes (2 psycannons)",  with (moving.rapidFireRange) $ specialWeaponStrikeSquad10 psycannon nemesisSword)
+      [ ("10 strikes",                 with (moving.rapidFiring) $ strikeSquad 10 nemesisSword)
+      -- , ("10 strikes (2 psilencers)",  with (moving.rapidFiring) $ specialWeaponStrikeSquad10 psilencer nemesisSword)
+      , ("10 strikes (2 psycannons)",  with (moving.rapidFiring) $ specialWeaponStrikeSquad10 psycannon nemesisSword)
       ]
 
 crusaderInfTest :: [NamedEqUnit]
 crusaderInfTest = andAuras $ andPsybolt $
     setCombatType Ranged
-      [ ("LR crusader (no melta)", with rapidFireRange [Marines.landraiderCrusader])
-      , ("LR crusader (HB only)",  with rapidFireRange [Marines.landraiderWith (two [hurricaneBolter])])
-      , ("LR crusader (AC only)",  with rapidFireRange [Marines.landraiderWith [twin assaultCannon]])
+      [ ("LR crusader (no melta)", with rapidFiring [Marines.landraiderCrusader])
+      , ("LR crusader (HB only)",  with rapidFiring [Marines.landraiderWith (two [hurricaneBolter])])
+      , ("LR crusader (AC only)",  with rapidFiring [Marines.landraiderWith [twin assaultCannon]])
       ]
 
 -- fullSmallGkInfTest :: [NamedEqUnit]

@@ -24,7 +24,7 @@ weaverOfFates :: Modifier
 weaverOfFates = em_model.model_inv %~ \inv -> max (inv-1) 3
 
 deathToTheFalseEmperor :: Modifier
-deathToTheFalseEmperor = em_ccw.as_weapon.w_hooks.hook_hit %~ addRollHook 6 (HitHookExtraAttacks 1)
+deathToTheFalseEmperor = em_ccw.as_weapon.w_hooks.hook_hit %~ addHook (MinModifiedRoll 6) (HitHookExtraAttacks 1)
 
 
 -- MODELS
@@ -51,19 +51,6 @@ chaosMarineModel = meq
 chaosTerminatorModel :: Model
 chaosTerminatorModel = meq
   & model_name .~ "chaos terminator"
-
-plagueMarineModel :: Model
-plagueMarineModel = meq
-  & model_tgh  .~ 5
-  & model_fnp  .~ 5
-  & model_name .~ "plague marine"
-
-blightlordTerminatorModel :: Model
-blightlordTerminatorModel = teq
-  & model_tgh  .~ 5
-  & model_inv  .~ 4
-  & model_fnp  .~ 5
-  & model_name .~ "blightlord terminator"
 
 
 -- CC WEAPONS

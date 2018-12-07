@@ -27,7 +27,7 @@ import qualified Graphics.Rendering.Chart.Backend.Diagrams as ChartD
 
 import Debug.Trace
 
-import W40K.Core.Prob (Event(..), Prob, QQ, events, distribution, revDistribution)
+import W40K.Core.Prob (Event(..), Prob, QQ, events, fmapProb, distribution, revDistribution, mean)
 import W40K.Core.Mechanics
 
 
@@ -61,6 +61,7 @@ data AnalysisFn tgt r where
     SlainModelsInt :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
     ProbKill       :: IsModel tgt =>                 AnalysisFn (Int, tgt) QQ
     ProbKillOne    :: IsModel tgt =>                 AnalysisFn tgt        QQ
+    AverageWounds  :: IsModel tgt =>                 AnalysisFn tgt        QQ
 
 data AnalysisConfig tgt r = AnalysisConfig AnalysisOrder (AnalysisFn tgt r) [NamedEqUnit] [tgt]
 
@@ -76,6 +77,7 @@ analysisFnName (SlainModels _)    = "# slain models"
 analysisFnName (SlainModelsInt _) = "# wholly slain models"
 analysisFnName ProbKill           = "" -- unused (grouped later in a bar plot)
 analysisFnName ProbKillOne        = "" -- unused (grouped later in a bar plot)
+analysisFnName AverageWounds      = "" -- unused (grouped later in a bar plot)
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.as_model.model_name)
@@ -84,6 +86,7 @@ analysisFnTgtName (SlainModels _)    = (^.as_model.model_name)
 analysisFnTgtName (SlainModelsInt _) = (^.as_model.model_name)
 analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.as_model.model_name
 analysisFnTgtName ProbKillOne        = (^.as_model.model_name)
+analysisFnTgtName AverageWounds      = (^.as_model.model_name)
 
 applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
 applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs . view as_model
@@ -92,6 +95,7 @@ applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs . view as_mo
 applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs . view as_model
 applyAnalysisFn ProbKill           ct srcs = uncurry (probKill ct srcs) . (_2 %~ view as_model)
 applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1 . view as_model
+applyAnalysisFn AverageWounds      ct srcs = mean . fmapProb fromIntegral . numWounds ct srcs . view as_model
 
 analyzeByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
 analyzeByAttacker fn squads tgts =
@@ -208,7 +212,7 @@ analysisBarPlot title results =
 
         (barTitles, values) = unzip $ map unzip groups
         sampleGroupTitles:_ = barTitles
-        barValues           = zip titleIndexes (values & mapped.mapped %~ (*100))
+        barValues           = zip titleIndexes values
 
         barPlot             = def & Chart.plot_bars_values      .~ barValues
                                   & Chart.plot_bars_titles      .~ sampleGroupTitles
@@ -258,6 +262,9 @@ analysisFnPlot fn results =
               (Dict, layout) -> renderLayouts [layout]
         ProbKillOne          ->
             case analysisBarPlot "kill probability (%)" results of
+              (Dict, layout) -> renderLayouts [layout]
+        AverageWounds        ->
+            case analysisBarPlot "average wounds" results of
               (Dict, layout) -> renderLayouts [layout]
 
 

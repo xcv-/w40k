@@ -19,15 +19,16 @@ data CombatType = Melee | Ranged deriving Eq
 
 -- MODIFIERS & REROLLS
 
-data IntMod = NoMod | Add !Int | Times !Int | Half | Dot !IntMod !IntMod
+data IntMod = NoMod | ConstVal !Int | Add !Int | Times !Int | Half | Dot !IntMod !IntMod
   deriving (Eq, Ord, Show)
 
 applyIntMod :: IntMod -> Int -> Int
-applyIntMod NoMod       n = n
-applyIntMod (Add k)     n = n + k
-applyIntMod (Times k)   n = n * k
-applyIntMod Half        n = (n+1) `div` 2
-applyIntMod (Dot m1 m2) n = applyIntMod m1 (applyIntMod m2 n)
+applyIntMod NoMod        n = n
+applyIntMod (ConstVal k) n = k
+applyIntMod (Add k)      n = n + k
+applyIntMod (Times k)    n = n * k
+applyIntMod Half         n = (n+1) `div` 2
+applyIntMod (Dot m1 m2)  n = applyIntMod m1 (applyIntMod m2 n)
 
 instance Semigroup IntMod where
     (<>) = Dot
@@ -113,8 +114,11 @@ instance Monoid Aura where
 
 -- WEAPONS
 
+data RequiredRoll = MinModifiedRoll !Int | MinUnmodifiedRoll !Int
+  deriving (Eq, Ord, Show)
+
 data RollHook eff = RollHook
-  { _hook_minRoll :: !Int
+  { _hook_minRoll :: !RequiredRoll
   , _hook_eff     :: !eff
   }
   deriving (Eq, Ord, Show)
@@ -149,8 +153,8 @@ data RollHooks = RollHooks
 noHooks :: RollHooks
 noHooks = RollHooks [] [] ()
 
-addRollHook :: Int -> eff -> [RollHook eff] -> [RollHook eff]
-addRollHook minRoll eff = (RollHook minRoll eff:)
+addHook :: RequiredRoll -> eff -> [RollHook eff] -> [RollHook eff]
+addHook reqRoll eff = (RollHook reqRoll eff:)
 
 data ModelClass = Infantry | Monster | Vehicle | Swarm | Cavalry | Biker | Beast | Battlesuit
   deriving (Eq, Ord, Show)
@@ -319,14 +323,21 @@ roll rr d noModPass modPass = do
 skillRoll :: Reroll -> Int -> Int -> Prob Int
 skillRoll rr skill mods = do
     k <- d6
+
     let modK = k + mods
 
-    if k > 1 && modK >= skill then
-      return modK
-    else if rerollable k then
-      skillRoll NoReroll skill mods
+    if k == 1 then
+      if rerollable k then
+        skillRoll NoReroll skill mods
+      else
+        return 1
     else
-      return (max 1 modK)
+      if modK >= skill then
+        return modK
+      else if rerollable k then
+        skillRoll NoReroll skill mods
+      else
+        return (max 1 modK)
   where
     rerollable k =
       case rr of

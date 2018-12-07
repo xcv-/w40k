@@ -240,6 +240,11 @@ incinerator = bolter
   & rw_ap               .~ -1
   & rw_name             .~ "incinerator"
 
+gatlingPsilencer :: RngWeapon
+gatlingPsilencer = psilencer
+  & rw_shots .~ return 12
+  & rw_name  .~ "gatling psilencer"
+
 heavyPsycannon :: RngWeapon
 heavyPsycannon = psycannon
   & rw_dmg  .~ return 2
@@ -290,7 +295,7 @@ hammer = basic_ccw
 
 blackBladeAntwyr :: CCWeapon
 blackBladeAntwyr = basic_ccw
-  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 0 (WoundHookExtraAttacks 1)
+  & ccw_weapon.w_hooks.hook_wound %~ addHook (MinUnmodifiedRoll 0) (WoundHookExtraAttacks 1)
   & ccw_name                      .~ "black blade of antwyr"
 
 soulGlaive :: CCWeapon
@@ -400,6 +405,9 @@ gmndkWith :: [RngWeapon] -> CCWeapon -> EquippedModel
 gmndkWith rw ccw = basicEquippedModel gmndkModel
   & em_rw  .~ rw
   & em_ccw .~ ccw
+
+gmndk :: EquippedModel
+gmndk = gmndkWith [gatlingPsilencer, heavyPsycannon] greatsword
 
 voldus :: EquippedModel
 voldus = grandMaster argyrum

@@ -39,7 +39,7 @@ exitusRifle = null_rw
   & rw_str                       .~ 5
   & rw_class                     .~ Heavy
   & rw_weapon                    .~ exitusRifleD3
-  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookModWeapon exitusRifleD6)
+  & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookModWeapon exitusRifleD6)
   & rw_name                      .~ "exitus rifle"
 
 vindicare :: EquippedModel

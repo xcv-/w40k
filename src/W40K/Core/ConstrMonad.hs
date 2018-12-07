@@ -1,3 +1,4 @@
+{-# language BangPatterns #-}
 {-# language ConstraintKinds #-}
 {-# language DefaultSignatures #-}
 {-# language FlexibleInstances #-}
@@ -89,7 +90,5 @@ forM (a:as) f = do
 -- {-# inline sequence #-}
 
 foldlM' :: (ConstrMonad c m, c a, c b) => (b -> a -> m b) -> b -> [a] -> m b
-foldlM' f z []     = return z
-foldlM' f z (x:xs) = do
-    y <- f z x
-    y `seq` foldlM' f y xs
+foldlM' f !z []     = return z
+foldlM' f !z (x:xs) = f z x >>= \z' -> foldlM' f z' xs

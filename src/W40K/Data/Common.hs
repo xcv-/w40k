@@ -13,8 +13,8 @@ import W40K.Core.Psychic
 
 -- TOOLS AND MODIFIERS
 
-rapidFireRange :: Modifier
-rapidFireRange = em_rw.mapped %~ rapidFireWeapon
+rapidFiring :: Modifier
+rapidFiring = em_rw.mapped %~ rapidFireWeapon
   where
     rapidFireWeapon rw
       | rw^.rw_class == RapidFire = rw & rw_shots %~ fmap (*2)
@@ -27,8 +27,8 @@ meltaRange = em_rw.mapped %~ meltaRangeWeapon
       | rw^.rw_melta = rw & rw_dmg %~ \dmg -> liftA2 max dmg dmg
       | otherwise    = rw
 
-closeEnoughRange :: Modifier
-closeEnoughRange = rapidFireRange . meltaRange
+closeEnough :: Modifier
+closeEnough = rapidFiring . meltaRange
 
 splitAttacks :: Int -> CCWeapon -> EquippedModel -> [EquippedModel]
 splitAttacks natt ccw em
@@ -42,13 +42,16 @@ moving :: Modifier
 moving = em_model.model_moved .~ True
 
 twice :: (Ord a, Num a) => Prob a -> Prob a
-twice p = sumProbs (replicate 2 p)
+twice = sumIID 2
 
 thrice :: (Ord a, Num a) => Prob a -> Prob a
-thrice p = sumProbs (replicate 3 p)
+thrice = sumIID 3
 
 twin :: RngWeapon -> RngWeapon
-twin = rw_shots %~ twice
+twin = (rw_shots %~ twice) . (rw_name %~ ("twin " ++))
+
+quad :: RngWeapon -> RngWeapon
+quad = (rw_shots %~ sumIID 4) . (rw_name %~ ("quad " ++))
 
 two :: [a] -> [a]
 two a = a ++ a
@@ -198,12 +201,21 @@ lascannon = RngWeapon
     & w_dmg    .~ d6
   }
 
+plasmaPistol :: Bool -> RngWeapon
+plasmaPistol overcharge = boltPistol
+  & rw_class .~ Pistol
+  & rw_str   .~ bool 8 7 overcharge
+  & rw_ap    .~ -3
+  & rw_dmg   .~ return (bool 2 1 overcharge)
+  & rw_name  .~ "plasma pistol"
+
 plasmaCannon :: Bool -> RngWeapon
 plasmaCannon overcharge = bolter
+  & rw_class .~ Heavy
   & rw_shots .~ d3
   & rw_str   .~ bool 8 7 overcharge
   & rw_ap    .~ -3
-  & rw_dmg   .~ bool (return 1) (return 2) overcharge
+  & rw_dmg   .~ return (bool 2 1 overcharge)
   & rw_name  .~ "plasma cannon"
 
 

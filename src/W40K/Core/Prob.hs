@@ -210,28 +210,19 @@ binomial13 = binomialMemo (1/3)
 binomial16 :: Int -> Prob Int
 binomial16 = binomialMemo (1/6)
 
-foldlProbs' :: (Ord a, Ord b) => (b -> a -> b) -> b -> [Prob a] -> Prob b
-foldlProbs' _ z []     = return z
-foldlProbs' f z (p:ps) = do
-    z' <- fmap (f z) p
-    z' `seq` foldlProbs' f z' ps
-{-# inlinable foldlProbs' #-}
+foldlProbs' :: (Ord a, Ord b) => (b -> a -> b) -> Prob b -> [Prob a] -> Prob b
+foldlProbs' = foldl' . liftA2
 
-foldrProbs :: (Ord a, Ord b) => (a -> b -> b) -> b -> [Prob a] -> Prob b
-foldrProbs f z = foldr (liftA2 f) (return z)
+foldrProbs :: (Ord a, Ord b) => (a -> b -> b) -> Prob b -> [Prob a] -> Prob b
+foldrProbs = foldr . liftA2
 
 foldProbs :: (Ord m, Monoid m) => [Prob m] -> Prob m
-foldProbs []      = return mempty
-foldProbs (pp:ps) = do
-    p <- pp
-    p `seq` foldlProbs' mappend p ps
-{-# inlinable foldProbs #-}
+foldProbs = foldlProbs' mappend (return mempty)
 
 sumProbs :: (Ord a, Num a) => [Prob a] -> Prob a
-sumProbs []  = return 0
-sumProbs [p] = p
-sumProbs ps  = foldlProbs' (+) 0 ps
-
+sumProbs []     = return 0
+sumProbs [p]    = p
+sumProbs (p:ps) = foldlProbs' (+) p ps
 {-# specialize sumProbs :: [Prob Int] -> Prob Int #-}
 
 foldAssocIID :: (Ord a) => (a -> a -> a) -> a -> Int -> Prob a -> Prob a

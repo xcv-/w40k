@@ -13,6 +13,34 @@ import qualified W40K.Data.Marines as Marines
 
 
 
+-- MODIFIERS
+
+ionFlareShield :: Model -> Model
+ionFlareShield = (model_rng_inv .~ 4) . (model_cc_inv .~ 5)
+
+firstKnight :: Model -> Model
+firstKnight = model_mods.mod_rrtohit <>~ RerollOnes
+
+helmDominatus :: Model -> Model
+helmDominatus = model_mods.mod_tohit +~ 1
+
+headman'sMark :: EquippedModel -> EquippedModel
+headman'sMark em = em
+  & em_rw.mapped.as_weapon.w_dmg  %~ fmap (+1)
+  & em_ccw.as_weapon.w_dmg %~ fmap (+1)
+
+krastTradition :: Model -> Model
+krastTradition = model_cc_mods.mod_rrtohit <>~ RerollFailed
+
+controlledAggression :: EquippedModel -> EquippedModel
+controlledAggression =
+    em_ccw.as_weapon.w_hooks.hook_hit %~ addHook (MinUnmodifiedRoll 6) (HitHookExtraHits 1)
+
+controlledAggressionChaos :: EquippedModel -> EquippedModel
+controlledAggressionChaos =
+    em_ccw.as_weapon.w_hooks.hook_hit %~ addHook (MinUnmodifiedRoll 6) (HitHookExtraHits 2)
+
+
 -- MODELS
 
 armigerModel :: Model
@@ -30,6 +58,11 @@ questorisModel = armigerModel
   & model_wnd         .~ 24
   & model_ld          .~ 9
   & model_name        .~ "questoris knight"
+
+cerastusModel :: Model
+cerastusModel = questorisModel
+  & model_wnd         .~ 27
+  & model_name        .~ "cerastus model"
 
 dominusModel :: Model
 dominusModel = questorisModel
@@ -67,11 +100,39 @@ reaperChainsword = basic_ccw
 
 thunderstrikeGauntlet :: CCWeapon
 thunderstrikeGauntlet = basic_ccw
-  & ccw_strMod    .~ Times 2
-  & ccw_ap        .~ -4
-  & ccw_dmg       .~ return 6
+  & ccw_strMod   .~ Times 2
+  & ccw_ap       .~ -4
+  & ccw_dmg      .~ return 6
   & ccw_name     .~ "thunderstrike gauntlet"
   & makeUnwieldly
+
+hekatonSiegeClaw :: CCWeapon
+hekatonSiegeClaw = thunderstrikeGauntlet
+  & ccw_name     .~ "hekaton siege claw"
+
+atroposLascutter :: CCWeapon
+atroposLascutter = basic_ccw
+  & ccw_strMod   .~ ConstVal 14
+  & ccw_ap       .~ -4
+  & ccw_dmg      .~ return 6
+  & ccw_weapon.w_mods.mod_rrtohit   .~ RerollFailed -- only against monsters, vehicles and buildings
+  & ccw_weapon.w_mods.mod_rrtowound .~ RerollFailed -- only against monsters, vehicles and buildings
+  & ccw_name     .~ "atropos lascutter"
+
+ravager :: CCWeapon
+ravager = basic_ccw
+  & ccw_strMod   .~ Add 8
+  & ccw_ap       .~ -4
+  & ccw_dmg      .~ return 6
+  & ccw_weapon.w_mods.mod_rrtohit .~ RerollOnes
+  & ccw_name     .~ "ravager"
+
+paragonGauntlet :: CCWeapon
+paragonGauntlet = basic_ccw
+  & ccw_strMod   .~ Times 2
+  & ccw_ap       .~ -4
+  & ccw_dmg      .~ return 8
+  & ccw_name     .~ "paragon gauntlet"
 
 -- RANGED WEAPONS
 
@@ -103,6 +164,45 @@ thermalCannon = multimelta
   & rw_str   .~ 9
   & rw_name  .~ "thermal cannon"
 
+stormspearRocketPod :: RngWeapon
+stormspearRocketPod = krakMissile
+  & rw_shots .~ return 3
+  & rw_name  .~ "stormspear rocket pod"
+
+radCleanser :: RngWeapon
+radCleanser = flamer
+  & rw_weapon.w_wounding .~ FixedWoundingAgainst [Infantry, Monster, Swarm, Cavalry, Biker, Beast, Battlesuit] 3
+  & rw_dmg               .~ return 3
+  & rw_name              .~ "rad-cleanser"
+
+volkiteChieorovile :: RngWeapon
+volkiteChieorovile = lascannon
+  & rw_shots .~ return 5
+  & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookExtraHits 1)
+  & rw_name  .~ "volkite chieorovile"
+
+gravitonCrusher :: RngWeapon
+gravitonCrusher = lascannon
+  & rw_shots .~ d3
+  & rw_str   .~ 6
+  & rw_ap    .~ -2
+  & rw_dmg   .~ return 3 -- only for 3+ saves or better, but they are common
+  & rw_name  .~ "graviton singularity cannon"
+
+gravitonSingularityCannon :: RngWeapon
+gravitonSingularityCannon = lascannon
+  & rw_shots .~ return 4
+  & rw_str   .~ 8
+  & rw_dmg   .~ return 3
+  & rw_name  .~ "graviton singularity cannon"
+
+atroposLascutterShot :: RngWeapon
+atroposLascutterShot = lascannon
+  & rw_str   .~ 12
+  & rw_ap    .~ -4
+  & rw_dmg   .~ return 6
+  & rw_name  .~ "atropos lascutter (shot)"
+
 siegeBreakerCannon :: RngWeapon
 siegeBreakerCannon = autocannon
   & rw_shots .~ d3
@@ -120,7 +220,6 @@ plasmaDecimator :: Bool -> RngWeapon
 plasmaDecimator overcharged = plasmaCannon overcharged
   & rw_shots .~ twice d6
   & rw_name  .~ "plasma decimator"
-
 
 volcanoLance :: RngWeapon
 volcanoLance = lascannon
@@ -160,17 +259,35 @@ questoris name ccw rws = basicEquippedModel questorisModel
   & em_ccw   .~ ccw
   & em_name  .~ "knight " ++ name ++ " w/" ++ ccw^.ccw_name
 
-knightErrant :: CCWeapon -> EquippedModel
-knightErrant ccw = questoris "errant" ccw [thermalCannon, heavyStubber]
+cerastus :: String -> CCWeapon -> [RngWeapon] -> EquippedModel
+cerastus name ccw rws = basicEquippedModel cerastusModel
+  & em_rw    .~ rws
+  & em_ccw   .~ ccw
+  & em_name  .~ "knight " ++ name ++ " w/" ++ ccw^.ccw_name
 
-knightWarden :: CCWeapon -> EquippedModel
-knightWarden ccw = questoris "warden" ccw [avengerGatlingCannon, heavyFlamer, heavyStubber]
+knightGallant :: CCWeapon -> EquippedModel
+knightGallant ccw = questoris "gallant" ccw []
+  & em_model.model_ws  .~ 2
+  & em_model.model_att .~ 5
 
-knightPaladin :: CCWeapon -> EquippedModel
-knightPaladin ccw = questoris "paladin" ccw [rapidFireBattleCannon, heavyStubber, heavyStubber]
+knightErrant :: [RngWeapon] -> CCWeapon -> EquippedModel
+knightErrant rw ccw = questoris "errant" ccw (rw ++ [thermalCannon])
 
-knightCrusader :: [RngWeapon] -> EquippedModel
-knightCrusader rw = stomping $ questoris "crusader" basic_ccw (rw ++ [avengerGatlingCannon, heavyFlamer, heavyStubber])
+knightWarden :: [RngWeapon] -> CCWeapon -> EquippedModel
+knightWarden rw ccw = questoris "warden" ccw (rw ++ [avengerGatlingCannon])
+
+knightPaladin :: [RngWeapon] -> CCWeapon -> EquippedModel
+knightPaladin rw ccw = questoris "paladin" ccw (rw ++ [rapidFireBattleCannon])
+
+knightCrusader :: [RngWeapon] -> RngWeapon -> EquippedModel
+knightCrusader rws armrw = stomping $ questoris "crusader" basic_ccw (rws ++ [armrw, avengerGatlingCannon])
+
+knightStyrix :: [RngWeapon] -> EquippedModel
+knightStyrix rw = questoris "styrix" hekatonSiegeClaw (volkiteChieorovile : gravitonCrusher : rw)
+  & em_model %~ ionFlareShield
+
+knightAtropos :: EquippedModel
+knightAtropos = cerastus "atropos" atroposLascutter [atroposLascutterShot, gravitonSingularityCannon]
 
 knightCastellan :: RngWeapon -> EquippedModel
 knightCastellan plasmaArm = basicEquippedModel dominusModel

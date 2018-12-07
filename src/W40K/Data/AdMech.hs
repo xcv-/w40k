@@ -69,7 +69,7 @@ eliminationVolley = em_model.model_rng_mods.mod_tohit +~ 1
 
 wrathOfMars :: Modifier
 wrathOfMars =
-    em_rw.mapped.rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalWounds (return 1))
+    em_rw.mapped.rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalWounds (return 1))
 
 
 data Protocol = Aegis | Protector | Conqueror
@@ -134,8 +134,8 @@ infiltratorPrincepsModel = infiltratorModel
   & model_ld   +~ 1
   & model_name .~ "infiltrator princeps"
 
-dragoonModel :: Model
-dragoonModel = rhino
+ironstriderModel :: Model
+ironstriderModel = rhino
   & model_ws      .~ 3
   & model_bs      .~ 3
   & model_str     .~ 5
@@ -145,6 +145,11 @@ dragoonModel = rhino
   & model_ld      .~ 8
   & model_save    .~ 4
   & model_inv     .~ 6
+  & model_name    .~ "ironstrider ballistarius (d-t)"
+
+dragoonModel :: Model
+dragoonModel = ironstriderModel
+  & model_rng_mods.mod_tobehit .~ -1
   & model_name    .~ "sydonian dragoon (d-t)"
 
 kastelanModel :: Model
@@ -179,7 +184,7 @@ galvanicRifleAp1 = galvanicRifleAp0
 
 galvanicRifle :: RngWeapon
 galvanicRifle = galvanicRifleAp0
-  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookModWeapon (galvanicRifleAp1^.rw_weapon))
+  & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookModWeapon (galvanicRifleAp1^.rw_weapon))
   & rw_name                      .~ "galvanic rifle"
 
 radiumCarbineDmg1 :: RngWeapon
@@ -196,7 +201,7 @@ radiumCarbineDmg2 = radiumCarbineDmg1
 
 radiumCarbine :: RngWeapon
 radiumCarbine = radiumCarbineDmg1
-  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookModWeapon (radiumCarbineDmg2^.rw_weapon))
+  & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookModWeapon (radiumCarbineDmg2^.rw_weapon))
   & rw_name     .~ "radium carbine"
 
 plasmaCaliver :: RngWeapon
@@ -217,7 +222,7 @@ transuranicArquebus = lascannon
   & rw_str      .~ 7
   & rw_ap       .~ -2
   & rw_dmg      .~ d3
-  & rw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalWounds (return 1))
+  & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalWounds (return 1))
   & rw_name     .~ "transuranic arquebus"
 
 flechetteBlaster :: RngWeapon
@@ -286,25 +291,25 @@ neutronLaser = lascannon
 transonicRazor :: CCWeapon
 transonicRazor = basic_ccw
   & ccw_name   .~ "transonic razor"
-  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalDamage (return 1))
+  & ccw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalDamage (return 1))
 
 transonicBlades :: CCWeapon
 transonicBlades = basic_ccw
   & ccw_strMod .~ Add 1
   & ccw_name   .~ "transonic blades"
-  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalDamage (return 1))
+  & ccw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalDamage (return 1))
 
 chordClaw :: CCWeapon
 chordClaw = basic_ccw
   & ccw_dmg    .~ d3
   & ccw_name   .~ "chord claw"
-  & ccw_weapon.w_hooks.hook_wound %~ addRollHook 6 (WoundHookMortalDamage d3)
+  & ccw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalDamage d3)
 
 taserGoad :: CCWeapon
 taserGoad = basic_ccw
   & ccw_strMod .~ Add 2
   & ccw_name   .~ "taser goad"
-  & ccw_weapon.w_hooks.hook_hit %~ addRollHook 6 (HitHookExtraHits 2)
+  & ccw_weapon.w_hooks.hook_hit %~ addHook (MinModifiedRoll 6) (HitHookExtraHits 2)
 
 taserLance :: CCWeapon
 taserLance = basic_ccw
@@ -312,7 +317,7 @@ taserLance = basic_ccw
   & ccw_ap     .~ -1
   & ccw_dmg    .~ return 2
   & ccw_name   .~ "taser lance"
-  & ccw_weapon.w_hooks.hook_hit %~ addRollHook 6 (HitHookExtraHits 2)
+  & ccw_weapon.w_hooks.hook_hit %~ addHook (MinModifiedRoll 6) (HitHookExtraHits 2)
 
 
 -- EQUIPPED MODELS
@@ -356,10 +361,20 @@ powerSwordInfiltrator = basicEquippedModel infiltratorModel
   & em_ccw    .~ powerSword
   & em_name   .~ "power sword infiltrator"
 
+autocannonIronstrider :: EquippedModel
+autocannonIronstrider = basicEquippedModel ironstriderModel
+  & em_rw    .~ [twin autocannon]
+  & em_name  .~ "autocannon ironstrider ballistarius (d-t)"
+
+lascannonIronstrider :: EquippedModel
+lascannonIronstrider = basicEquippedModel ironstriderModel
+  & em_rw    .~ [twin lascannon]
+  & em_name  .~ "lascannon ironstrider ballistarius (d-t)"
+
 taserLanceDragoon :: EquippedModel
 taserLanceDragoon = basicEquippedModel dragoonModel
   & em_ccw   .~ taserLance
-  & em_name  .~ "sydonian dragoon (taser)"
+  & em_name  .~ "sydonian dragoon (taser) (d-t)"
 
 dakkabot :: Protocol -> EquippedModel
 dakkabot proto = withProtocol proto $

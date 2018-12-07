@@ -82,6 +82,10 @@ instance Ord w => Monoid (TotalWounds w) where
     mempty = TotalWounds mempty mempty
 
 
+satisfiesReqRoll :: RequiredRoll -> Int -> Int -> Bool
+satisfiesReqRoll (MinModifiedRoll m)   _    r = r >= m
+satisfiesReqRoll (MinUnmodifiedRoll m) mods r = r-mods >= m
+
 rollHits :: IsWeapon w => Model -> w -> Model -> Prob Int
 rollHits src w tgt = do
     natt <- weaponAttacks src w
@@ -96,9 +100,9 @@ rollToHit src w tgt natt hooks =
     case hooks of
       [] -> binomial natt pHit
 
-      [RollHook minRoll eff] -> do
+      [RollHook reqRoll eff] -> do
         nhit <- binomial natt pHit
-        neff <- binomial nhit $ min 1 (probOf (>= minRoll) (hitRoll src w tgt) / pHit)
+        neff <- binomial nhit $ min 1 (probOf (satisfiesReqRoll reqRoll mods) (hitRoll src w tgt) / pHit)
         nextra <- resolveHitHook src w tgt neff eff []
         return (nhit + nextra)
 
@@ -107,10 +111,11 @@ rollToHit src w tgt natt hooks =
         sumIID natt $ do
           k <- hitRoll src w tgt
           let base = if doesHit src w tgt k then 1 else 0
-          extra <- sumProbs $ resolveHooks (resolveHitHook src w tgt 1) hooks k
+          extra <- sumProbs $ resolveHooks (\req -> satisfiesReqRoll req mods k) (resolveHitHook src w tgt 1) hooks k
           return (base + extra)
   where
     pHit = probHit src w tgt
+    mods = hitMods src w tgt
 
 rollWounds :: IsWeapon w => Model -> w -> Model -> Int -> Prob (TotalWounds Weapon)
 rollWounds src w tgt nhit =
@@ -133,9 +138,9 @@ rollToWound' src w tgt nhit hooks = do
         let regularWounds = TotalWounds mempty (SortedList.singleton (Wounds nwound (w^.as_weapon)))
         return regularWounds
 
-      [RollHook minRoll eff] -> withMult 1 $ do
+      [RollHook reqRoll eff] -> withMult 1 $ do
         nwound <- binomial nhit pWound
-        neff   <- binomial nwound $ min 1 (probOf (>= minRoll) (woundRoll src w tgt) / pWound)
+        neff   <- binomial nwound $ min 1 (probOf (satisfiesReqRoll reqRoll mods) (woundRoll src w tgt) / pWound)
         extraW <- resolveWoundHook src w tgt neff eff []
 
         let regularWounds = TotalWounds mempty (SortedList.singleton (Wounds nwound (w^.as_weapon)))
@@ -143,7 +148,7 @@ rollToWound' src w tgt nhit hooks = do
 
       _ -> withMult nhit $ do
           k <- woundRoll src w tgt
-          extra <- foldProbs $ resolveHooks (resolveWoundHook src w tgt 1) hooks k
+          extra <- foldProbs $ resolveHooks (\req -> satisfiesReqRoll req mods k) (resolveWoundHook src w tgt 1) hooks k
 
           if doesWound src w tgt k then
             let regularWound = TotalWounds mempty (SortedList.singleton (Wounds 1 (w^.as_weapon)))
@@ -152,17 +157,18 @@ rollToWound' src w tgt nhit hooks = do
             return extra
   where
     pWound = probWound src w tgt
+    mods = woundMods src w
 
     withMult !n !p = (n, p)
 
 
-resolveHooks :: Show a => (eff -> [RollHook eff] -> Prob a) -> [RollHook eff] -> Int -> [Prob a]
-resolveHooks resolveEff = go []
+resolveHooks :: Show a => (RequiredRoll -> Bool) -> (eff -> [RollHook eff] -> Prob a) -> [RollHook eff] -> Int -> [Prob a]
+resolveHooks filterHook resolveEff = go []
   where
     go _         []                                      _ = []
-    go prevHooks (hook@(RollHook minRoll eff):nextHooks) rollValue
-      | minRoll <= rollValue = resolveEff eff (prevHooks ++ nextHooks) : go (hook:prevHooks) nextHooks rollValue
-      | otherwise            = go (hook:prevHooks) nextHooks rollValue
+    go prevHooks (hook@(RollHook reqRoll eff):nextHooks) rollValue
+      | filterHook reqRoll = resolveEff eff (prevHooks ++ nextHooks) : go (hook:prevHooks) nextHooks rollValue
+      | otherwise          = go (hook:prevHooks) nextHooks rollValue
 
 resolveHitHook :: IsWeapon w => Model -> w -> Model -> Int -> HitHookEff -> [HitHook] -> Prob Int
 resolveHitHook src w tgt nsuccesses eff otherHooks =
@@ -280,15 +286,15 @@ foldWounds f = foldlM' (\a wnd -> consumeRound a |=<<| wnd)
   where
     consumeRound :: a -> TotalWounds DamageRoll -> Prob a
     consumeRound z (TotalWounds (MortalWounds pmw) weaponDmg) = do
-      mw <- pmw
-      z' <- consumeWounds z (Wounds mw (return 1))
-      foldlM' consumeWounds z' (SortedList.toAscList weaponDmg)
+      let mz' = pmw >>= \mw -> consumeWounds (return z) (Wounds mw (return 1))
 
-    consumeWounds :: a -> Wounds DamageRoll -> Prob a
-    consumeWounds z (Wounds n dmg) = foldlProbs' f z (replicate n dmg)
+      foldl' consumeWounds mz' (SortedList.toAscList weaponDmg)
+
+    consumeWounds :: Prob a -> Wounds DamageRoll -> Prob a
+    consumeWounds mz (Wounds n dmg) = foldlProbs' f mz (replicate n dmg)
 
 
-sumWoundsMax :: Int -> [Prob (TotalWounds DamageRoll)] -> DamageRoll
+sumWoundsMax :: Int -> [Prob (TotalWounds DamageRoll)] -> Prob Int
 sumWoundsMax maxWounds = top . sumProbs . map (top . sumRound =<<)
   where
     top :: DamageRoll -> DamageRoll
@@ -299,7 +305,7 @@ sumWoundsMax maxWounds = top . sumProbs . map (top . sumRound =<<)
     sumTop | maxWounds > 0 = \x y -> min maxWounds (x+y)
            | otherwise     = (+)
 
-    sumRound :: TotalWounds DamageRoll -> DamageRoll
+    sumRound :: TotalWounds DamageRoll -> Prob Int
     sumRound (TotalWounds (MortalWounds pmw) weaponDmg) =
         sumProbs [pmw, sumWeaponDmg weaponDmg]
 
@@ -307,7 +313,7 @@ sumWoundsMax maxWounds = top . sumProbs . map (top . sumRound =<<)
     sumWeaponDmg =
         sumProbs . map (\(Wounds n pdmg) -> foldAssocIID sumTop 0 n pdmg) . SortedList.toAscList
 
-sumWounds :: [Prob (TotalWounds DamageRoll)] -> DamageRoll
+sumWounds :: [Prob (TotalWounds DamageRoll)] -> Prob Int
 sumWounds = sumWoundsMax 0
 
 slainModels :: Model -> [Prob (TotalWounds DamageRoll)] -> Prob QQ
@@ -352,6 +358,12 @@ attackSplit n ccw em =
          & em_ccw .~ ccw
     ]
 
+evaluateCombat :: CombatType -> [EquippedModel] -> Model -> [Prob (TotalWounds DamageRoll)]
+evaluateCombat ct srcs tgt =
+    case ct of
+      Melee  -> evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
+      Ranged -> evaluateAttacks ct [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
+
 
 type Modifier = EquippedModel -> EquippedModel
 
@@ -375,25 +387,16 @@ twoHighest a b c
 -- ANALYSES
 
 numWounds :: CombatType -> [EquippedModel] -> Model -> Prob Int
-numWounds ct srcs tgt =
-    case ct of
-      Melee  -> sumWounds $ evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
-      Ranged -> sumWounds $ evaluateAttacks ct [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
+numWounds ct srcs tgt = sumWounds $ evaluateCombat ct srcs tgt
 
 numWoundsMax :: CombatType -> [EquippedModel] -> Model -> Int -> Prob Int
-numWoundsMax ct srcs tgt maxWounds =
-    case ct of
-      Melee  -> sumWoundsMax maxWounds $ evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
-      Ranged -> sumWoundsMax maxWounds $ evaluateAttacks ct [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
+numWoundsMax ct srcs tgt maxWounds = sumWoundsMax maxWounds $ evaluateCombat ct srcs tgt
 
 numSlainModels :: CombatType -> [EquippedModel] -> Model -> Prob QQ
-numSlainModels ct srcs tgt =
-    case ct of
-      Melee  -> slainModels tgt $ evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
-      Ranged -> slainModels tgt $ evaluateAttacks ct [(src^.em_model, rw)          | src <- srcs, rw <- src^.em_rw] tgt
+numSlainModels ct srcs tgt = slainModels tgt $ evaluateCombat ct srcs tgt
 
 numSlainModelsInt :: CombatType -> [EquippedModel] -> Model -> Prob Int
-numSlainModelsInt ct srcs tgt = fmap floor $ numSlainModels ct srcs tgt
+numSlainModelsInt ct srcs tgt = fmapProbMonotone floor $ numSlainModels ct srcs tgt
 
 probKill :: CombatType -> [EquippedModel] -> Int -> Model -> QQ
 probKill ct srcs 1     tgt = probOf (>= tgt^.model_wnd) (numWoundsMax ct srcs tgt (tgt^.model_wnd))
