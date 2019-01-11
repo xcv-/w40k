@@ -1,16 +1,21 @@
 {-# language BangPatterns #-}
-{-# language TypeFamilies #-}
+{-# language ExistentialQuantification #-}
 {-# language RankNTypes #-}
 {-# language RebindableSyntax #-}
 {-# language ScopedTypeVariables #-}
-{-# language TemplateHaskell #-}
-{-# language TypeOperators #-}
 {-# language Strict #-}
+{-# language TemplateHaskell #-}
+{-# language TypeFamilies #-}
+{-# language TypeOperators #-}
 module W40K.Core.Mechanics
   ( module Mechanics
+  , MortalWounds(..)
+  , TotalDamage
   , sumWounds
   , sumWoundsMax
-  , slainModels
+  , WoundedModels(..)
+  , woundModels
+  , fracWoundedModels
   , EquippedModel (..)
   , em_model, em_ccw, em_rw, em_name
   , basicEquippedModel
@@ -19,12 +24,23 @@ module W40K.Core.Mechanics
   , with
   , applyAura
   , within
-  , twoHighest
+
   , numWounds
   , numWoundsMax
+  , resumeNumWoundedModels
+  , numWoundedModels
   , numSlainModels
-  , numSlainModelsInt
   , probKill
+
+  , Turn(..)
+  , GenericTurn(..)
+  , eraseTurn
+  , emptyTurn
+  , turnNumWounds
+  , turnNumWoundsMax
+  , turnNumSlainModels
+  , turnNumSlainModelsInt
+  , turnProbKill
   ) where
 
 import Prelude hiding (Functor(..), Monad(..), (=<<))
@@ -40,7 +56,7 @@ import qualified W40K.Core.SortedList as SortedList
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
-import W40K.Core.Util ((:*:)(..))
+import W40K.Core.Util (parMap)
 import W40K.Core.Mechanics.Common as Mechanics
 import W40K.Core.Mechanics.Melee  as Mechanics
 import W40K.Core.Mechanics.Ranged as Mechanics
@@ -75,6 +91,8 @@ data TotalWounds w = TotalWounds
   deriving (Eq, Ord, Show)
 
 makeLenses ''TotalWounds
+
+type TotalDamage = TotalWounds DamageRoll
 
 instance Ord w => Semigroup (TotalWounds w) where
     TotalWounds w1 mw1 <> TotalWounds w2 mw2 = TotalWounds (w1 <> w2) (mw1 <> mw2)
@@ -196,7 +214,7 @@ resolveWoundHook src w tgt nsuccesses eff otherHooks =
   where
     pWound = probWound src w tgt
 
-unsavedDamage :: IsWeapon w => Model -> w -> Model -> Prob (TotalWounds DamageRoll)
+unsavedDamage :: IsWeapon w => Model -> w -> Model -> Prob TotalDamage
 unsavedDamage src w tgt = do
     nhit <- rollHits src w tgt
 
@@ -242,12 +260,19 @@ applyFnp = \fnp nw ->
     cachedIgnoredWounds :: [[DamageRoll]]
     cachedIgnoredWounds = [[binomial nw (prob_d6_gt fnp) | nw <- [0..]] | fnp <- [0..7]]
 
-effectiveDamage :: CombatType -> Model -> TotalWounds DamageRoll -> TotalWounds DamageRoll
-effectiveDamage ct tgt unsaved =
-    let (TotalWounds (MortalWounds mw) wounds) = unsaved
 
-        mw' :: DamageRoll
-        mw' = dmgAfterFnp mw
+effectiveMortalWounds :: Model -> MortalWounds -> TotalWounds a
+effectiveMortalWounds tgt (MortalWounds mw) = TotalWounds (MortalWounds (dmgAfterFnp mw)) SortedList.empty
+  where
+    dmgAfterFnp :: DamageRoll -> DamageRoll
+    dmgAfterFnp pdmg = applyFnp (tgt^.model_fnp) =<< pdmg
+
+effectiveDamage :: CombatType -> Model -> TotalDamage -> TotalDamage
+effectiveDamage ct tgt unsaved =
+    let (TotalWounds mw wounds) = unsaved
+
+        mw' :: MortalWounds
+        mw' = MortalWounds (dmgAfterFnp (getMortalWounds mw))
 
         modifyDamageRoll :: DamageRoll -> DamageRoll
         modifyDamageRoll = dmgAfterFnp . dmgAfterDmgMods . dmgAfterQuantumShielding
@@ -256,7 +281,7 @@ effectiveDamage ct tgt unsaved =
         wounds' = SortedList.map (\(Wounds nwounded pdmg) -> Wounds nwounded (modifyDamageRoll pdmg))
                                  wounds
     in
-        TotalWounds (MortalWounds mw') wounds'
+        TotalWounds mw' wounds'
   where
     dmgAfterQuantumShielding :: DamageRoll -> DamageRoll
     dmgAfterQuantumShielding pdmg
@@ -274,27 +299,31 @@ effectiveDamage ct tgt unsaved =
     dmgAfterFnp pdmg = applyFnp (tgt^.model_fnp) =<< pdmg
 
 
-evaluateAttack :: IsWeapon w => CombatType -> Model -> w -> Model -> Prob (TotalWounds DamageRoll)
+evaluateAttack :: IsWeapon w => CombatType -> Model -> w -> Model -> Prob TotalDamage
 evaluateAttack ct src w tgt = fmap (effectiveDamage ct tgt) (unsavedDamage src w tgt)
 
-evaluateAttacks :: IsWeapon w => CombatType -> [(Model, w)] -> Model -> [Prob (TotalWounds DamageRoll)]
-evaluateAttacks ct srcws tgt = map (\(src, w) -> evaluateAttack ct src w tgt) (shrinkModels srcws)
+evaluateAttacks :: IsWeapon w => CombatType -> [(Model, w)] -> Model -> [Prob TotalDamage]
+evaluateAttacks ct srcws tgt = concat $
+    parMap (\(cnt, src, w) -> replicate cnt $! evaluateAttack ct src w tgt)
+           (shrinkModels srcws)
 
 
-foldWounds :: forall a. Ord a => (a -> Int -> a) -> a -> [Prob (TotalWounds DamageRoll)] -> Prob a
-foldWounds f = foldlM' (\a wnd -> consumeRound a |=<<| wnd)
+foldWounds :: forall a. Ord a => (a -> Int -> a) -> a -> [Prob TotalDamage] -> Prob a
+foldWounds f = foldl' consumeRound . return
   where
-    consumeRound :: a -> TotalWounds DamageRoll -> Prob a
-    consumeRound z (TotalWounds (MortalWounds pmw) weaponDmg) = do
-      let mz' = pmw >>= \mw -> consumeWounds (return z) (Wounds mw (return 1))
+    consumeRound :: Prob a -> Prob TotalDamage -> Prob a
+    consumeRound pz pwnd  = do
+      TotalWounds (MortalWounds pmw) weaponDmg <- pwnd
 
-      foldl' consumeWounds mz' (SortedList.toAscList weaponDmg)
+      let pz' = pmw >>= \mw -> consumeWounds pz (Wounds mw (return 1))
+
+      foldl' consumeWounds pz' (SortedList.toAscList weaponDmg)
 
     consumeWounds :: Prob a -> Wounds DamageRoll -> Prob a
-    consumeWounds mz (Wounds n dmg) = foldlProbs' f mz (replicate n dmg)
+    consumeWounds pz (Wounds n dmg) = foldlProbs' f pz (replicate n dmg)
 
 
-sumWoundsMax :: Int -> [Prob (TotalWounds DamageRoll)] -> Prob Int
+sumWoundsMax :: Int -> [Prob TotalDamage] -> Prob Int
 sumWoundsMax maxWounds = top . sumProbs . map (top . sumRound =<<)
   where
     top :: DamageRoll -> DamageRoll
@@ -305,7 +334,7 @@ sumWoundsMax maxWounds = top . sumProbs . map (top . sumRound =<<)
     sumTop | maxWounds > 0 = \x y -> min maxWounds (x+y)
            | otherwise     = (+)
 
-    sumRound :: TotalWounds DamageRoll -> Prob Int
+    sumRound :: TotalDamage -> Prob Int
     sumRound (TotalWounds (MortalWounds pmw) weaponDmg) =
         sumProbs [pmw, sumWeaponDmg weaponDmg]
 
@@ -313,21 +342,26 @@ sumWoundsMax maxWounds = top . sumProbs . map (top . sumRound =<<)
     sumWeaponDmg =
         sumProbs . map (\(Wounds n pdmg) -> foldAssocIID sumTop 0 n pdmg) . SortedList.toAscList
 
-sumWounds :: [Prob (TotalWounds DamageRoll)] -> Prob Int
+sumWounds :: [Prob TotalDamage] -> Prob Int
 sumWounds = sumWoundsMax 0
 
-slainModels :: Model -> [Prob (TotalWounds DamageRoll)] -> Prob QQ
-slainModels tgt =
-    fmap summarize . foldWounds woundModels (0 :*: 0)
-  where
-    woundModels :: (Int :*: Int) -> Int -> (Int :*: Int)
-    woundModels (kills :*: wounds) dmg
-      | wounds + dmg >= tgt^.model_wnd = (kills+1 :*: 0)
-      | otherwise                      = (kills :*: wounds + dmg)
 
-    summarize :: (Int :*: Int) -> QQ
-    summarize (kills :*: wounds) =
-        fromIntegral kills + fromIntegral wounds / fromIntegral (tgt^.model_wnd)
+data WoundedModels = WoundedModels
+  { killedModels       :: {-# unpack #-} !Int
+  , woundedModelWounds :: {-# unpack #-} !Int
+  } deriving (Eq, Ord, Show)
+
+woundModels :: Model -> WoundedModels -> [Prob TotalDamage] -> Prob WoundedModels
+woundModels tgt = foldWounds woundModels
+  where
+    woundModels :: WoundedModels -> Int -> WoundedModels
+    woundModels (WoundedModels kills wounds) dmg
+      | wounds + dmg >= tgt^.model_wnd = WoundedModels (kills+1) 0
+      | otherwise                      = WoundedModels kills (wounds + dmg)
+
+fracWoundedModels :: Model -> WoundedModels -> QQ
+fracWoundedModels tgt (WoundedModels kills wounds) =
+    fromIntegral kills + fromIntegral wounds / fromIntegral (tgt^.model_wnd)
 
 
 
@@ -358,7 +392,7 @@ attackSplit n ccw em =
          & em_ccw .~ ccw
     ]
 
-evaluateCombat :: CombatType -> [EquippedModel] -> Model -> [Prob (TotalWounds DamageRoll)]
+evaluateCombat :: CombatType -> [EquippedModel] -> Model -> [Prob TotalDamage]
 evaluateCombat ct srcs tgt =
     case ct of
       Melee  -> evaluateAttacks ct [(src^.em_model, src^.em_ccw) | src <- srcs                  ] tgt
@@ -377,14 +411,8 @@ applyAura aura = (em_model.model_cc_mods  <>~ aura^.aura_cc)
 within :: Aura -> [EquippedModel] -> [EquippedModel]
 within = map . applyAura
 
-twoHighest :: Ord a => a -> a -> a -> (a, a)
-twoHighest a b c
-  | a <= b && a <= c = (b, c)
-  | b <= a && b <= c = (a, c)
-  | otherwise        = (a, b)
 
-
--- ANALYSES
+-- BASIC ANALYSIS
 
 numWounds :: CombatType -> [EquippedModel] -> Model -> Prob Int
 numWounds ct srcs tgt = sumWounds $ evaluateCombat ct srcs tgt
@@ -392,12 +420,101 @@ numWounds ct srcs tgt = sumWounds $ evaluateCombat ct srcs tgt
 numWoundsMax :: CombatType -> [EquippedModel] -> Model -> Int -> Prob Int
 numWoundsMax ct srcs tgt maxWounds = sumWoundsMax maxWounds $ evaluateCombat ct srcs tgt
 
+resumeNumWoundedModels :: CombatType -> [EquippedModel] -> Model -> WoundedModels -> Prob WoundedModels
+resumeNumWoundedModels ct srcs tgt curWounded = woundModels tgt curWounded $ evaluateCombat ct srcs tgt
+
+numWoundedModels :: CombatType -> [EquippedModel] -> Model -> Prob WoundedModels
+numWoundedModels ct srcs tgt = resumeNumWoundedModels ct srcs tgt (WoundedModels 0 0)
+
 numSlainModels :: CombatType -> [EquippedModel] -> Model -> Prob QQ
-numSlainModels ct srcs tgt = slainModels tgt $ evaluateCombat ct srcs tgt
+numSlainModels ct srcs tgt = fmap (fracWoundedModels tgt) $ numWoundedModels ct srcs tgt
 
 numSlainModelsInt :: CombatType -> [EquippedModel] -> Model -> Prob Int
-numSlainModelsInt ct srcs tgt = fmapProbMonotone floor $ numSlainModels ct srcs tgt
+numSlainModelsInt ct srcs = fmapProbMonotone floor . numSlainModels ct srcs
 
 probKill :: CombatType -> [EquippedModel] -> Int -> Model -> QQ
 probKill ct srcs 1     tgt = probOf (>= tgt^.model_wnd) (numWoundsMax ct srcs tgt (tgt^.model_wnd))
 probKill ct srcs ntgts tgt = probOf (>= ntgts)          (numSlainModelsInt ct srcs tgt)
+
+
+-- TURN MECHANICS
+
+data Turn pr cr = Turn
+  { turnName     :: String
+  , turnPsychic  :: Model -> Prob (MortalWounds, pr)
+  , turnShooting :: pr -> [EquippedModel]
+  , turnCharges  :: pr -> Prob cr
+  , turnMelee    :: pr -> cr -> [EquippedModel]
+  }
+
+eraseTurn :: (Ord pr, Ord cr) => Turn pr cr -> GenericTurn
+eraseTurn = GenericTurn
+
+emptyTurn :: Turn () ()
+emptyTurn = Turn "" (\_ -> return (mempty, ())) (\_ -> []) (\_ -> return ()) (\_ _ -> [])
+
+interleaveTurns :: (Ord pr1, Ord cr1, Ord pr2, Ord cr2) => Turn pr1 cr1 -> Turn pr2 cr2 -> Turn (pr1, pr2) (cr1, cr2)
+interleaveTurns turn1 turn2 =
+    Turn {
+      turnName = case (turnName turn1, turnName turn2) of
+               (n1, "")  -> n1
+               ("", n2) -> n2
+               (n1, n2) -> n1 ++ " + " ++ n2,
+
+      turnPsychic = \tgt -> liftA2 (\(mw1, pr1) (mw2, pr2) -> (mw1 <> mw2, (pr1, pr2)))
+                                   (turnPsychic turn1 tgt)
+                                   (turnPsychic turn2 tgt),
+
+      turnCharges = \(pr1, pr2) -> liftA2 (,) (turnCharges turn1 pr1) (turnCharges turn2 pr2),
+
+      turnShooting = \(pr1, pr2)            -> turnShooting turn1 pr1 ++ turnShooting turn2 pr2,
+      turnMelee    = \(pr1, pr2) (cr1, cr2) -> turnMelee turn1 pr1 cr1 ++ turnMelee turn2 pr2 cr2
+    }
+
+data GenericTurn = forall pr cr. (Ord pr, Ord cr) => GenericTurn (Turn pr cr)
+
+instance Semigroup GenericTurn where
+  GenericTurn turn1 <> GenericTurn turn2 = eraseTurn $ interleaveTurns turn1 turn2
+
+instance Monoid GenericTurn where
+  mempty = eraseTurn emptyTurn
+
+
+turnNumWounds :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Prob Int
+turnNumWounds turn tgt = do
+    (mw, pr) <- turnPsychic turn tgt
+    let psydmg = effectiveMortalWounds tgt mw
+    cr <- turnCharges turn pr
+
+    sumProbs [sumWounds [return psydmg],
+              numWounds Ranged (turnShooting turn pr) (tgt^.as_model),
+              numWounds Melee  (turnMelee turn pr cr) (tgt^.as_model)]
+
+turnNumWoundsMax :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Int -> Prob Int
+turnNumWoundsMax turn tgt maxWounds = do
+    (mw, pr) <- turnPsychic turn tgt
+    let psydmg = effectiveMortalWounds tgt mw
+    cr <- turnCharges turn pr
+
+    sumProbs [sumWoundsMax maxWounds [return psydmg],
+              numWoundsMax Ranged (turnShooting turn pr) tgt maxWounds,
+              numWoundsMax Melee  (turnMelee turn pr cr) tgt maxWounds]
+      & fmapProbMonotone (min maxWounds)
+
+turnNumSlainModels :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Prob QQ
+turnNumSlainModels turn tgt = do
+    (mw, pr) <- turnPsychic turn tgt
+    let psydmg = effectiveMortalWounds tgt mw
+    cr <- turnCharges turn pr
+
+    fmapProbMonotone (fracWoundedModels tgt) $
+      woundModels tgt (WoundedModels 0 0) [return psydmg]
+        >>= resumeNumWoundedModels Ranged (turnShooting turn pr) tgt
+        >>= resumeNumWoundedModels Melee  (turnMelee turn pr cr) tgt
+
+turnNumSlainModelsInt :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Prob Int
+turnNumSlainModelsInt turn = fmapProbMonotone floor . turnNumSlainModels turn
+
+turnProbKill :: (Ord pr, Ord cr) => Turn pr cr -> Int -> Model -> QQ
+turnProbKill turn 1     tgt = probOf (>= tgt^.model_wnd) (turnNumWoundsMax turn tgt (tgt^.model_wnd))
+turnProbKill turn ntgts tgt = probOf (>= ntgts)          (turnNumSlainModelsInt turn tgt)

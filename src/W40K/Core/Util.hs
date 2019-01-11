@@ -1,8 +1,10 @@
 {-# language ScopedTypeVariables #-}
 {-# language TypeOperators #-}
 module W40K.Core.Util
-  ( seqItems
+  ( whnfItems
+  , seqItems
   , parItems
+  , parMap
   , (:*:)(..)
   , groupWith
   ) where
@@ -22,6 +24,9 @@ seqItems as = whnfItems as `seq` as
 
 parItems :: [a] -> [a]
 parItems = withStrategy (parList rpar)
+
+parMap :: (a -> b) -> [a] -> [b]
+parMap f = parItems . map f
 
 
 data a :*: b = !a :*: !b deriving (Eq, Ord, Show)

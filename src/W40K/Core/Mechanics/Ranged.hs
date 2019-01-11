@@ -136,14 +136,13 @@ rngProbSave rw tgt =
         (probTrue (rngSaveInv   rw tgt))
 
 
-rngShrinkModels :: [(Model, RngWeapon)] -> [(Model, RngWeapon)]
-rngShrinkModels = groupWith eqrel sumShots
+rngShrinkModels :: [(Model, RngWeapon)] -> [(Int, Model, RngWeapon)]
+rngShrinkModels = groupWith eqrel (\(m,rw) mrws -> (1 + length mrws, m, rw))
   where
     relevantModelFields m = (m^.model_bs, m^.model_rng_mods, m^.model_moved && not (m^.model_ignoreHeavy))
 
     eqrel :: (Model, RngWeapon) -> (Model, RngWeapon) -> Bool
     eqrel (m1,w1) (m2,w2) = relevantModelFields m1 == relevantModelFields m2 && w1 == w2
 
-    sumShots (src, w) srcws = (src, w & rw_shots %~ liftA2 (+) (numShots srcws))
-
-    numShots = sumProbs . map (^._2.rw_shots)
+    -- sumShots (src, w) srcws = (src, w & rw_shots %~ liftA2 (+) (numShots srcws))
+    -- numShots = sumProbs . map (^._2.rw_shots)

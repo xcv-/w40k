@@ -8,6 +8,7 @@
 module W40K.Core.SortedList
   ( SortedList
   , SortedListItem(..)
+  , empty
   , singleton
   , fromAscList
   , toAscList
@@ -40,6 +41,10 @@ newtype SortedList a = SortedList [a]
 seqItemsSL :: SortedList a -> SortedList a
 seqItemsSL (SortedList as) = SortedList as -- (seqItems as)
 {-# inline seqItemsSL #-}
+
+empty :: SortedList a
+empty = SortedList []
+{-# inline empty #-}
 
 singleton :: a -> SortedList a
 singleton a = SortedList [a]

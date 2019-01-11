@@ -4,83 +4,76 @@ module W40K.Core.Psychic where
 
 import Prelude hiding (Functor(..), Applicative(..), Monad(..), liftA2, sequence, (=<<))
 
+import Data.List (sort)
+import Data.Maybe (isJust)
+
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
 import Control.Lens
 
 data PsychicPower = PsychicPower
-    { _power_castingValue        :: Int
-    , _power_inflictMortalWounds :: Model -> Model -> Int -> Prob Int
-    }
+  { _power_castingValue        :: Int
+  , _power_inflictMortalWounds :: Model -> Model -> Int -> Prob Int
+  , _power_mod                 :: Modifier
+  }
 
 makeLenses ''PsychicPower
 
-data PsykerCasting = PsykerCasting
-    { _cast_bonus                  :: IntMod
-    , _cast_usingPsychicChanneling :: Bool
-    , _cast_psyker                 :: Model
-    }
+data Psyker = Psyker
+  { _psyker_cast_roll :: Prob [Int]
+  , _psyker_deny_roll :: Prob [Int]
+  , _psyker_cast_mod  :: IntMod
+  , _psyker_deny_mod  :: IntMod
+  }
 
-makeLenses ''PsykerCasting
-
-data PsykerDenying = PsykerDenying
-    { _deny_bonus      :: IntMod
-    , _deny_usingAegis :: Bool
-    }
-
-makeLenses ''PsykerDenying
+makeLenses ''Psyker
 
 
-psychicTest :: PsykerCasting -> PsychicPower -> Prob (Maybe Int)
+psychicTest :: Psyker -> PsychicPower -> Prob (Maybe Int)
 psychicTest caster power = do
-    (a, b) <- if caster^.cast_usingPsychicChanneling then
-                  liftA3 twoHighest d6 d6 d6
-              else
-                  liftA2 (,) d6 d6
+    rolls <- caster^.psyker_cast_roll
 
     let minCV = power^.power_castingValue
-        cv    = applyIntMod (caster^.cast_bonus) (a + b)
+        cv    = applyIntMod (caster^.psyker_cast_mod) (sum rolls)
 
-    case (a, b) of
-        (1, 1) -> return Nothing
-        (6, 6) -> return Nothing
-        (a, b)
-          | cv < minCV -> return Nothing
-          | otherwise  -> return (Just cv)
+    case sort rolls of
+      1:1:_ -> return Nothing
+      _ | cv < minCV -> return Nothing
+        | otherwise  -> return (Just cv)
 
-denyTest :: PsykerDenying -> Int -> Prob Bool
-denyTest deny cv = do
-    (a, b) <- if deny^.deny_usingAegis then
-                  liftA3 twoHighest d6 d6 d6
-              else
-                  liftA2 (,) d6 d6
+denyTest :: Psyker -> Int -> Prob Bool
+denyTest denier cv = do
+    rolls <- denier^.psyker_deny_roll
+    let denyV = applyIntMod (denier^.psyker_deny_mod) (sum rolls)
 
-    let denyV = applyIntMod (deny^.deny_bonus) (a + b)
     return (denyV > cv)
 
-manifestPower :: PsykerCasting -> PsychicPower -> Maybe PsykerDenying -> Prob (Maybe Int)
+manifestPower :: Psyker -> PsychicPower -> Maybe Psyker -> Prob (Maybe Int)
 manifestPower caster power Nothing       = psychicTest caster power
-manifestPower caster power (Just deny) = do
+manifestPower caster power (Just denier) = do
     mcv <- psychicTest caster power
 
     case mcv of
         Nothing -> return Nothing
         Just cv -> do
-            denied <- denyTest deny cv
+            denied <- denyTest denier cv
             return (if denied then Nothing else Just cv)
 
+doesManifestPower :: Psyker -> PsychicPower -> Maybe Psyker -> Prob Bool
+doesManifestPower caster power mdeny = fmapProb isJust (manifestPower caster power mdeny)
 
-castPsychic :: PsykerCasting -> PsychicPower -> Maybe PsykerDenying -> Model -> Prob Int
-castPsychic caster power mdeny tgt = do
+
+castOffensivePsychic :: Psyker -> PsychicPower -> Maybe Psyker -> Model -> Model -> Prob Int
+castOffensivePsychic caster power mdeny src tgt = do
     mcv <- manifestPower caster power mdeny
     case mcv of
         Nothing -> return 0
-        Just cv -> (power^.power_inflictMortalWounds) (caster^.cast_psyker) tgt cv
+        Just cv -> (power^.power_inflictMortalWounds) src tgt cv
 
-castPsychics :: [(PsykerCasting, PsychicPower, Maybe PsykerDenying)] -> Model -> Prob Int
-castPsychics psykers tgt =
+castOffensivePsychics :: [(Psyker, PsychicPower, Maybe Psyker, Model)] -> Model -> Prob Int
+castOffensivePsychics psykers tgt =
     let mortalWounds = map applyCast psykers
     in  sumProbs mortalWounds
   where
-    applyCast (caster, power, deny) = castPsychic caster power deny tgt
+    applyCast (caster, power, denier, src) = castOffensivePsychic caster power denier src tgt

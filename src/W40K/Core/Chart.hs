@@ -6,7 +6,21 @@
 {-# language TypeApplications #-}
 {-# language TypeFamilies #-}
 {-# language UndecidableInstances #-}
-module W40K.Core.Chart where
+module W40K.Core.Chart
+  ( AnalysisOrder(..)
+  , ProbPlotType(..)
+  , AnalysisFn(..)
+  , AnalysisConfig(..)
+  , AnalysisResults
+  , plotResults
+  , analyze
+  , analyzeAll
+  , diagramToFile
+  , resultsToSvgFile
+  , analysisToSvgFile
+  , mainWithPlot
+  , mainWithAnalysis
+  ) where
 
 import Data.Coerce (coerce)
 import Data.Constraint (Dict(..))
@@ -27,8 +41,10 @@ import qualified Graphics.Rendering.Chart.Backend.Diagrams as ChartD
 
 import Debug.Trace
 
-import W40K.Core.Prob (Event(..), Prob, QQ, events, fmapProb, distribution, revDistribution, mean)
+import qualified W40K.Core.ConstrMonad as CM
+import W40K.Core.Prob (Event(..), Prob, QQ, events, fmapProbMonotone, distribution, mean, revDistribution)
 import W40K.Core.Mechanics
+import W40K.Core.Util (whnfItems)
 
 
 moreColors :: [AlphaColour Double]
@@ -36,21 +52,8 @@ moreColors = cycle $ map opaque
   [black, blue, brown, chocolate, cyan, darkgreen, fuchsia, gold, gray,
    greenyellow, lightpink, olive, orange, red, yellow]
 
-mapNamedEqUnit :: String -> ([EquippedModel] -> [EquippedModel]) -> [NamedEqUnit] -> [NamedEqUnit]
-mapNamedEqUnit modName mod = map $ \(name, ct, squad) ->
-    (name ++ " (" ++ modName ++ ")", ct, mod squad)
-
-setCombatType :: CombatType -> [(String, [EquippedModel])] -> [NamedEqUnit]
-setCombatType ct = map (\(name, squad) -> (name, ct, squad))
-
-titleCombatType :: CombatType -> String
-titleCombatType Melee  = "(melee)"
-titleCombatType Ranged = "(ranged)"
-
 
 data AnalysisOrder = ByAttacker | ByTarget
-
-type NamedEqUnit = (String, CombatType, [EquippedModel])
 
 data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
 
@@ -63,21 +66,29 @@ data AnalysisFn tgt r where
     ProbKillOne    :: IsModel tgt =>                 AnalysisFn tgt        QQ
     AverageWounds  :: IsModel tgt =>                 AnalysisFn tgt        QQ
 
-data AnalysisConfig tgt r = AnalysisConfig AnalysisOrder (AnalysisFn tgt r) [NamedEqUnit] [tgt]
 
-type AnalysisResults r = [(String, [(String, r)])]
+data AnalysisConfig = forall tgt r. AnalysisConfig
+  { analysisOrder :: AnalysisOrder
+  , analysisFn    :: AnalysisFn tgt r
+  , attackers     :: [GenericTurn]
+  , targets       :: [tgt]
+  }
 
-analysisConfig' :: AnalysisOrder -> AnalysisFn tgt r -> [tgt] -> [NamedEqUnit] -> AnalysisConfig tgt r
-analysisConfig' order fn tgts srcs = AnalysisConfig order fn srcs tgts
+type AnalysisResultsTable r = [(String, [(String, r)])]
+
+data AnalysisResults = forall tgt r. AnalysisResults
+  { resultsourceFn :: AnalysisFn tgt r
+  , resultTable    :: AnalysisResultsTable r
+  }
 
 analysisFnName :: AnalysisFn tgt r -> String
-analysisFnName (NumWounds _)      = "# wounds"
-analysisFnName (NumWoundsMax _)   = "# wounds"
-analysisFnName (SlainModels _)    = "# slain models"
-analysisFnName (SlainModelsInt _) = "# wholly slain models"
-analysisFnName ProbKill           = "" -- unused (grouped later in a bar plot)
-analysisFnName ProbKillOne        = "" -- unused (grouped later in a bar plot)
-analysisFnName AverageWounds      = "" -- unused (grouped later in a bar plot)
+analysisFnName (NumWounds _)      = "wounds"
+analysisFnName (NumWoundsMax _)   = "wounds"
+analysisFnName (SlainModels _)    = "slain models"
+analysisFnName (SlainModelsInt _) = "wholly slain models"
+analysisFnName ProbKill           = "p. killing"
+analysisFnName ProbKillOne        = "p. killing one"
+analysisFnName AverageWounds      = "avg wounds"
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.as_model.model_name)
@@ -88,35 +99,53 @@ analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.as_model.mo
 analysisFnTgtName ProbKillOne        = (^.as_model.model_name)
 analysisFnTgtName AverageWounds      = (^.as_model.model_name)
 
-applyAnalysisFn :: AnalysisFn tgt r -> CombatType -> [EquippedModel] -> tgt -> r
-applyAnalysisFn (NumWounds _)      ct srcs = numWounds ct srcs . view as_model
-applyAnalysisFn (NumWoundsMax _)   ct srcs = \tgt -> numWoundsMax ct srcs (tgt^.as_model) (tgt^.as_model.model_wnd)
-applyAnalysisFn (SlainModels _)    ct srcs = numSlainModels ct srcs . view as_model
-applyAnalysisFn (SlainModelsInt _) ct srcs = numSlainModelsInt ct srcs . view as_model
-applyAnalysisFn ProbKill           ct srcs = uncurry (probKill ct srcs) . (_2 %~ view as_model)
-applyAnalysisFn ProbKillOne        ct srcs = probKill ct srcs 1 . view as_model
-applyAnalysisFn AverageWounds      ct srcs = mean . fmapProb fromIntegral . numWounds ct srcs . view as_model
+applyAnalysisFn :: (Ord pr, Ord cr) => AnalysisFn tgt r -> Turn pr cr -> tgt -> r
+applyAnalysisFn fn turn tgt =
+    case fn of
+      NumWounds _       -> turnNumWounds turn (tgt^.as_model)
+      NumWoundsMax _    -> turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
 
-analyzeByAttacker :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
-analyzeByAttacker fn squads tgts =
-    [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
-              | tgt <- tgts
-              , let legend = legendTgt tgt ])
-    | (squadName, ct, squad) <- squads
-    , let title = titleAtt squadName ct ]
+      SlainModels _     -> turnNumSlainModels turn (tgt^.as_model)
+      SlainModelsInt pt -> turnNumSlainModelsInt turn (tgt^.as_model)
+
+      ProbKill          -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
+      ProbKillOne       -> turnProbKill turn 1 (tgt^.as_model)
+
+      AverageWounds     -> mean $ fmapProbMonotone fromIntegral $ turnNumWounds turn (tgt^.as_model)
+
+
+forceResults :: AnalysisResults -> AnalysisResults
+forceResults (AnalysisResults fn results) =
+    whnfItems [whnfItems [r | (_, r) <- rs] | (_, rs) <- results]
+      `seq` AnalysisResults fn results
+
+
+analyzeByAttacker :: AnalysisFn tgt r -> [GenericTurn] -> [tgt] -> AnalysisResults
+analyzeByAttacker fn turns tgts =
+    forceResults $ AnalysisResults fn
+      [ (title, [ trace (title ++ " " ++ legend) (legend, applyAnalysisFn fn turn tgt)
+                | tgt <- tgts
+                , let legend = legendTgt tgt
+                ])
+      | GenericTurn turn <- turns
+      , let title = titleAtt (turnName turn)
+      ]
   where
-    titleAtt name ct = analysisFnName fn ++ " attacking with " ++ name ++ " " ++ titleCombatType ct
+    titleAtt name = analysisFnName fn ++ " attacking with " ++ name
     legendTgt tgt = "vs " ++ analysisFnTgtName fn tgt
 
-analyzeByTarget :: NFData r => AnalysisFn tgt r -> [NamedEqUnit] -> [tgt] -> AnalysisResults r
-analyzeByTarget fn squads tgts =
-    [ (title, [ trace (title ++ " " ++ legend) $ force (legend, applyAnalysisFn fn ct squad tgt)
-              | (squadName, ct, squad) <- squads
-              , let legend = legendAtt squadName ct])
-    | tgt <- tgts
-    , let title = titleTgt tgt ]
+analyzeByTarget :: AnalysisFn tgt r -> [GenericTurn] -> [tgt] -> AnalysisResults
+analyzeByTarget fn turns tgts =
+    forceResults $ AnalysisResults fn
+      [ (title, [ trace (title ++ " " ++ legend) (legend, applyAnalysisFn fn turn tgt)
+                | GenericTurn turn <- turns
+                , let legend = legendAtt (turnName turn)
+                ])
+      | tgt <- tgts
+      , let title = titleTgt tgt
+      ]
   where
-    legendAtt name ct = "with " ++ name ++ " " ++ titleCombatType ct
+    legendAtt name = "with " ++ name
     titleTgt tgt = analysisFnName fn ++ " targeting " ++ analysisFnTgtName fn tgt
 
 eventChart :: Chart.PlotValue a => String -> [Event a] -> [Event a] -> (a, Chart.PlotLines a Chart.Percent)
@@ -162,7 +191,7 @@ revDistributionChart title prob = eventChart title (relevantEvents revDist) revD
     revDist = revDistribution prob
     relevantEvents = takeWhile (\(Event _ p) -> p >= 1 - 0.99)
 
-probAnalysisChart :: (Ord a, Chart.PlotValue a) => ProbPlotType -> AnalysisResults (Prob a) -> [Chart.Layout a Chart.Percent]
+probAnalysisChart :: (Ord a, Chart.PlotValue a) => ProbPlotType -> AnalysisResultsTable (Prob a) -> [Chart.Layout a Chart.Percent]
 probAnalysisChart plotType =
       map (uncurry buildLayout)
     . uniformLimits
@@ -205,7 +234,7 @@ instance Given [String] => Chart.PlotValue BarPlotIndex where
     fromValue = coerce (Chart.fromValue @Chart.PlotIndex)
     autoAxis  = coerce (Chart.autoIndexAxis @Chart.PlotIndex given)
 
-analysisBarPlot :: String -> AnalysisResults QQ -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
+analysisBarPlot :: String -> AnalysisResultsTable QQ -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
 analysisBarPlot title results =
     let (titles,    groups) = unzip results
         titleIndexes        = map (BarPlotIndex . fst) (Chart.addIndexes titles)
@@ -249,8 +278,8 @@ renderLayouts frames = do
 combinePlotsVert :: (Floating (N b), Ord (N b), V b ~ V2) => [Diagram b] -> Diagram b
 combinePlotsVert = vcat . map alignL
 
-analysisFnPlot :: AnalysisFn tgt r -> AnalysisResults r -> IO (Diagram SVG)
-analysisFnPlot fn results =
+plotResults :: AnalysisResults -> IO (Diagram SVG)
+plotResults (AnalysisResults fn results) =
     fmap combinePlotsVert $
       case fn of
         NumWounds      ptype -> renderLayouts $ probAnalysisChart ptype results
@@ -268,34 +297,34 @@ analysisFnPlot fn results =
               (Dict, layout) -> renderLayouts [layout]
 
 
-analyze :: forall tgt r. NFData r => AnalysisConfig tgt r -> IO (AnalysisResults r, Diagram SVG)
-analyze (AnalysisConfig order fn srcs tgts) =
+analyze :: AnalysisConfig -> IO (AnalysisResults, Diagram SVG)
+analyze (AnalysisConfig order fn turns tgts) =
     case order of
-      ByAttacker -> plotResults (analyzeByAttacker fn srcs tgts)
-      ByTarget   -> plotResults (analyzeByTarget   fn srcs tgts)
+      ByAttacker -> plotResults' (analyzeByAttacker fn turns tgts)
+      ByTarget   -> plotResults' (analyzeByTarget   fn turns tgts)
   where
-    plotResults :: AnalysisResults r -> IO (AnalysisResults r, Diagram SVG)
-    plotResults rs = do
-        plot <- analysisFnPlot fn rs
+    plotResults' :: AnalysisResults -> IO (AnalysisResults, Diagram SVG)
+    plotResults' rs = do
+        plot <- plotResults rs
         return (rs, plot)
 
-analyzeAll :: NFData r => [AnalysisConfig tgt r] -> IO (AnalysisResults r, Diagram SVG)
-analyzeAll = fmap ((concat *** combinePlotsVert) . unzip) . mapM analyze
+analyzeAll :: [AnalysisConfig] -> IO ([AnalysisResults], Diagram SVG)
+analyzeAll = fmap ((id *** combinePlotsVert) . unzip) . mapM analyze
 
 diagramToFile :: FilePath -> Diagram SVG -> IO ()
 diagramToFile path = renderSVG path absolute
 
-resultsToSvgFile :: FilePath -> AnalysisFn tgt r -> AnalysisResults r -> IO ()
-resultsToSvgFile path fn = diagramToFile path <=< analysisFnPlot fn
+resultsToSvgFile :: FilePath -> AnalysisResults -> IO ()
+resultsToSvgFile path = diagramToFile path <=< plotResults
 
-analysisToSvgFile :: NFData r => FilePath -> [AnalysisConfig tgt r] -> IO (AnalysisResults r)
+analysisToSvgFile :: FilePath -> [AnalysisConfig] -> IO [AnalysisResults]
 analysisToSvgFile path cfgs = do
     (rs, diag) <- analyzeAll cfgs
     diagramToFile path diag
     return rs
 
-mainWithPlot :: AnalysisFn tgt r -> AnalysisResults r -> IO ()
-mainWithPlot fn = mainWith <=< analysisFnPlot fn
+mainWithPlot :: AnalysisResults -> IO ()
+mainWithPlot = mainWith <=< plotResults
 
-mainWithAnalysis :: NFData r => [AnalysisConfig tgt r] -> IO ()
+mainWithAnalysis :: [AnalysisConfig] -> IO ()
 mainWithAnalysis = mainWith . snd <=< analyzeAll

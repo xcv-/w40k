@@ -4,7 +4,7 @@ module W40K.Data.GreyKnights where
 
 import Prelude hiding (Functor(..), Monad(..))
 import Data.Function (on)
-import Data.List (maximumBy)
+import Data.List (maximumBy, sort)
 import Control.Lens
 
 import W40K.Core.ConstrMonad
@@ -44,8 +44,8 @@ gkWithSpecialWeapon rw em = em
 brotherhoodBanner :: Modifier
 brotherhoodBanner m = m & em_model.model_att +~ 1 & em_model.model_ld +~ 1
 
-hammerhand :: Modifier
-hammerhand = em_model.model_cc_mods.mod_towound +~ 1
+hammerhanded :: Modifier
+hammerhanded = em_model.model_cc_mods.mod_towound +~ 1
 
 psyboltAmmo :: Modifier
 psyboltAmmo = em_rw.mapped %~ applyPsybolt
@@ -179,39 +179,47 @@ draigoModel = grandMasterModel
 
 -- PSYCHIC
 
-gkCasting :: Bool -> [EquippedModel] -> PsykerCasting
-gkCasting channeling models = PsykerCasting
-    { _cast_bonus                  = Add 1
-    , _cast_usingPsychicChanneling = channeling
-    , _cast_psyker                 = maximumBy (compare `on` (^.em_model.model_ld)) models
-                                       ^. em_model
-    }
+gkPsyker :: Psyker
+gkPsyker = defaultPsyker
+  & psyker_cast_mod .~ Add 1
+  & psyker_deny_mod .~ Add 1
+
+psychicChanneling :: Psyker -> Psyker
+psychicChanneling =
+    psyker_cast_roll %~ \proll -> do
+      extra <- d6
+      roll <- proll
+      return (tail (sort (extra:roll)))
+
+withTheAegis :: Psyker -> Psyker
+withTheAegis =
+    psyker_deny_roll %~ \proll -> do
+      extra <- d6
+      roll <- proll
+      return (tail (sort (extra:roll)))
 
 ritesOfBanishment :: PsychicPower
-ritesOfBanishment = PsychicPower
-    { _power_castingValue = 5
-    , _power_inflictMortalWounds = \_ _ _ -> return 1
-    }
+ritesOfBanishment = smite
+  & power_inflictMortalWounds .~ \_ _ _ -> return 1
 
 cleansingFlame :: PsychicPower
-cleansingFlame = PsychicPower
-    { _power_castingValue = 5
-    , _power_inflictMortalWounds = \_ _ _ -> d6
-    }
+cleansingFlame = smite
+  & power_inflictMortalWounds .~ \_ _ _ -> d6
 
 vortexOfDoom :: PsychicPower
-vortexOfDoom = PsychicPower
-    { _power_castingValue = 8
-    , _power_inflictMortalWounds = \_ _ cv -> if cv >= 12 then d6 else d3
-    }
+vortexOfDoom = noopPower 8
+  & power_inflictMortalWounds .~ \_ _ cv -> if cv >= 12 then d6 else d3
 
 purgeSoul :: PsychicPower
-purgeSoul = PsychicPower
-    { _power_castingValue = 5
-    , _power_inflictMortalWounds = \src tgt _ -> do
-        diff <- liftA2 (-) d6 d6
-        return $ max 0 (src^.model_ld - tgt^.model_ld + diff)
-    }
+purgeSoul = noopPower 5
+  & power_inflictMortalWounds .~ \src tgt _ -> do
+      diff <- liftA2 (-) d6 d6
+      return $ max 0 (src^.model_ld - tgt^.model_ld + diff)
+
+hammerhand :: PsychicPower
+hammerhand = noopPower 6
+  & power_mod .~ hammerhanded
+
 
 
 -- RANGED WEAPONS

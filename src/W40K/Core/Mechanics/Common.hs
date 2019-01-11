@@ -3,8 +3,9 @@
 {-# language TemplateHaskell #-}
 module W40K.Core.Mechanics.Common where
 
-import Prelude hiding (Functor(..), Monad(..))
+import Prelude hiding (Functor(..), Monad(..), sequence)
 
+import Data.List (sort)
 import Data.Monoid ((<>))
 
 import W40K.Core.ConstrMonad
@@ -209,7 +210,7 @@ class IsWeapon w where
 
     probSave :: w -> Model -> QQ
 
-    shrinkModels :: [(Model, w)] -> [(Model, w)]
+    shrinkModels :: [(Model, w)] -> [(Int, Model, w)]
 
 probHit :: IsWeapon w => Model -> w -> Model -> QQ
 probHit src w tgt
@@ -295,6 +296,11 @@ d3 = uniformly [1..3]
 d6 :: Prob Int
 d6 = uniformly [1..6]
 
+d6rr1 :: Prob Int
+d6rr1 = do
+    r <- d6
+    if r == 1 then d6 else return r
+
 prob_d6_gt :: Int -> QQ
 prob_d6_gt k
   | k > 6     = 0
@@ -345,6 +351,28 @@ skillRoll rr skill mods = do
         RerollFailed | k < skill -> True
         RerollAll                -> True
         otherwise                -> False
+
+
+data ChargeRerolls = NoChargeReroll | RerollChargeOneDie | RerollChargeAllDice | RerollChargeAnyDice
+
+chargeRoll :: ChargeRerolls -> Int -> Prob Bool
+chargeRoll rr minRoll = do
+  [a,b] <- fmapProb sort $ sequence [d6,d6]
+  let dist = a + b
+
+  if dist >= minRoll then
+    return True
+  else
+    case rr of
+      NoChargeReroll      -> return False
+      RerollChargeOneDie  -> bernoulli (prob_d6_gt (minRoll-b))
+      RerollChargeAllDice -> bernoulli baseProbPass
+      RerollChargeAnyDice
+        | baseProbPass >= prob_d6_gt (minRoll-b) -> bernoulli baseProbPass
+        | otherwise                              -> bernoulli (prob_d6_gt (minRoll-b))
+  where
+    baseProbPass = probTrue $ chargeRoll NoChargeReroll minRoll
+
 
 
 allIsDustSaveMod :: Weapon -> Model -> Int

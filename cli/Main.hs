@@ -1,9 +1,13 @@
+{-# language RebindableSyntax #-}
 module Main where
 
 import Prelude hiding (Functor(..), Monad(..))
 
 import Control.Lens
 
+import Data.List (isInfixOf)
+
+import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Chart
 import W40K.Core.Mechanics
@@ -25,113 +29,296 @@ import qualified W40K.Data.ThousandSons    as TSons
 import qualified W40K.Data.Tyranids        as Tyranids
 
 
+main :: IO ()
 main = do
-    let chaosPrimarchs =
-          [ DG.mortarion       DG.silenceReaping
-          , DG.buffedMortarion DG.silenceReaping
-          , TSons.magnus
-          , TSons.buffedMagnus
-          ]
+    chaosPrimarchTests
+    plagueMarineTests
+    arcWeaponryTests
 
-    let rangedAttackers = setCombatType Ranged
-          [ ("onslaught GMNDK + SR AT + SH las",
-              with (GK.psyOnslaughtAmmo . moving)
-                [GK.gmndk]
-              ++
-              (with moving . within GK.draigoAura)
-                [ Marines.stormravenWith [lascannon, Marines.stormstrike, Marines.stormstrike]
-                , Marines.stormhawkWith [Marines.lastalon] & em_model %~ Marines.interceptorJet
-                , Marines.stormhawkWith [Marines.lastalon] & em_model %~ Marines.interceptorJet
-                ])
 
-          , ("knight styrix",
-              with (em_model %~ IK.firstKnight)
-                [IK.knightStyrix []])
-
-          , ("headman's mark paladin + stormspear",
-              [IK.headman'sMark (IK.knightPaladin [IK.stormspearRocketPod] IK.reaperChainsword)])
-
-          , ("helverin + AA helverin",
-              [ IK.armigerHelverin
-              , IK.armigerHelverin & em_model.model_rng_mods.mod_rrtohit .~ RerollFailed
-              ])
-
-          , ("atropos",
-              [IK.knightAtropos])
-
-          , ("3 protector autocannon ironstriders",
-              with AdMech.protectorDoctrinaImperative $
-                replicate 3 AdMech.autocannonIronstrider)
-
-          , ("3 protector lascannon ironstriders",
-              with AdMech.protectorDoctrinaImperative $
-                replicate 3 AdMech.lascannonIronstrider)
-
-          , ("2 rr1 neutronagers",
-              within AdMech.dominusAura $
-                replicate 2 AdMech.neutronOnager)
-          ]
-
-    let meleeAttackers = setCombatType Melee
-          [ ("gallant paragon gt.",
-              [IK.knightGallant IK.paragonGauntlet])
-
-          , ("gallant ravager",
-              [IK.knightGallant IK.ravager])
-
-          , ("c.a. gallant stomps",
-              with (IK.controlledAggressionChaos . IK.stomping) $
-                [IK.knightGallant IK.reaperChainsword])
-
-          , ("atropos",
-              [IK.knightAtropos])
-
-          , ("GMNDK",
-              [GK.gmndk & em_model.model_cc_mods.mod_rrtowound <>~ RerollFailed])
-
-          , ("3 conqueror dragoons",
-              with AdMech.conquerorDoctrinaImperative $
-                replicate 3 AdMech.taserLanceDragoon)
-          ]
-
+chaosPrimarchTests :: IO ()
+chaosPrimarchTests = do
     analysisToSvgFile "/tmp/primarchs-avg.svg"
-      [ analysisConfig' ByTarget AverageWounds chaosPrimarchs rangedAttackers
-      , analysisConfig' ByTarget AverageWounds chaosPrimarchs meleeAttackers
+      [ AnalysisConfig ByTarget AverageWounds                      mixedAttackers chaosPrimarchs
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) mixedAttackers chaosPrimarchs
       ]
 
     analysisToSvgFile "/tmp/primarchs-distrib.svg"
-      [ analysisConfig' ByTarget (NumWoundsMax RevDistributionPlot) chaosPrimarchs rangedAttackers
-      , analysisConfig' ByTarget (NumWoundsMax RevDistributionPlot) chaosPrimarchs meleeAttackers
+      [ AnalysisConfig ByTarget AverageWounds                      bigKnights     chaosPrimarchs
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) bigKnights     chaosPrimarchs
       ]
 
-    analysisToSvgFile "/tmp/plague-distrib.svg"
-      [ analysisConfig' ByTarget (SlainModels RevDistributionPlot) [DG.plagueMarineModel] $
-          setCombatType Ranged
-            [ ("malleus prometheus",
-                with (em_model %~ Inq.quarryBonus Inq.OrdoMalleus) $
-                  [Inq.landraiderPrometheus])
+    return ()
+  where
+    chaosPrimarchs =
+        [ DG.mortarion       DG.silenceReaping
+        , DG.buffedMortarion DG.silenceReaping
+        , TSons.magnus
+        , TSons.buffedMagnus
+        ]
 
-            , ("psybolt SR w/Draigo",
-                within GK.draigoAura $ with (rapidFiring . GK.psyboltAmmo) $
-                  [Marines.stormravenWith [hurricaneBolter, hurricaneBolter, twin heavyBolter]])
+    denier tgt
+      | "magnus" `isInfixOf` (tgt^.model_name) = Just TSons.magnusPsyker
+      | otherwise                              = Just defaultPsyker
 
-            , ("psybolt 10x SS w/Draigo",
-                within GK.draigoAura $ with (rapidFiring . GK.psyboltAmmo) $
-                  GK.strikeSquad 10 GK.twoFalchions)
+    mixedAttackers =
+      [
+        -- GK
+        mconcat [
+          psychicMod GK.gkPsyker GK.hammerhand denier $
+          deepstriking RerollChargeAnyDice $
+          eraseTurn emptyTurn {
+            turnName = "DS GMNDK (shooting+FttF)",
 
-            , ("2x stormhawk AssCan+HB w/Draigo",
-                within GK.draigoAura $ with moving $
-                  two [Marines.stormhawkWith (two [assaultCannon] ++ two [heavyBolter])])
+            turnShooting = \_ -> [GK.gmndk],
 
-            , ("2 helverins",
-                two [IK.armigerHelverin])
+            turnMelee = \_ _ ->
+               [GK.gmndk & em_model.model_cc_mods.mod_rrtowound <>~ RerollFailed]
+          },
 
-            , ("3 protector autocannon ironstriders",
-                with AdMech.protectorDoctrinaImperative $
-                  replicate 3 AdMech.autocannonIronstrider)
+          eraseTurn emptyTurn {
+              turnName = "draigo flyerwing",
+              turnShooting = \_ ->
+                with moving $ within GK.draigoAura
+                  [ Marines.stormravenWith [lascannon, Marines.stormstrike, Marines.stormstrike]
+                  , Marines.stormhawkWith [Marines.lastalon] & em_model %~ Marines.interceptorJet
+                  , Marines.stormhawkWith [Marines.lastalon] & em_model %~ Marines.interceptorJet
+                  ]
+          }
+        ],
 
-            , ("2 protector dakkabots RR1",
-                within AdMech.dominusAura $
-                  AdMech.dakkabots 2 AdMech.Protector)
+        -- AdMech/IK
+        mconcat [
+          eraseTurn emptyTurn {
+            turnName = "2 helverin",
+            turnShooting = \_ ->
+              [ IK.armigerHelverin
+              , IK.armigerHelverin
+              ]
+          },
+
+          eraseTurn emptyTurn {
+            turnName = "headman's mark paladin w/stormspear",
+            turnShooting = \_ -> [IK.headman'sMark (IK.knightPaladin [IK.stormspearRocketPod] IK.reaperChainsword)],
+            turnMelee = \_ _ -> [IK.stomping $ IK.headman'sMark (IK.knightPaladin [IK.stormspearRocketPod] IK.reaperChainsword)]
+          },
+
+          eraseTurn emptyTurn {
+            turnName = "3 rr1 neutronagers",
+            turnShooting = \_ ->
+              within AdMech.cawlAura $
+                replicate 3 AdMech.neutronOnager
+          },
+
+          chargeFilter (chargeRoll RerollChargeOneDie (24 - 9 - 10)) $
+          eraseTurn emptyTurn {
+            turnName = "3 protector rr1 AC ballistarii",
+            turnShooting = \_ ->
+              within AdMech.cawlAura $
+                replicate 3 AdMech.autocannonIronstrider
+          }
+        ],
+
+        -- AdMech
+        eraseTurn emptyTurn {
+          turnName = "5 EV cawl WoM dakkabots + 3 rr1 plasmaphrons",
+          turnShooting = \_ ->
+            with AdMech.eliminationVolley $ concat [
+              within AdMech.cawlAura $
+                with AdMech.wrathOfMars $
+                  AdMech.dakkabots 5 AdMech.Protector,
+
+              within AdMech.dominusAura $
+                replicate 3 AdMech.plasmaKataphronOvercharge
             ]
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "6 EV mindlock rr1 ryza plasmaphrons",
+          turnShooting = \_ ->
+            within AdMech.dominusAura $
+              with (AdMech.plasmaSpecialists . AdMech.neosphericMindlock . AdMech.eliminationVolley) $
+                replicate 6 AdMech.plasmaKataphronOvercharge
+        }
+      ]
+
+    bigKnights =
+      [
+        chargeFilter (do { adv <- d6; chargeRoll RerollChargeOneDie (24 - 12-adv-2 - 2) }) $
+        eraseTurn emptyTurn {
+          turnName = "landstrider gallant paragon gt.",
+          turnMelee = \_ _ -> [IK.knightGallant IK.paragonGauntlet]
+        },
+
+        chargeFilter (do { adv <- d6; chargeRoll RerollChargeOneDie (24 - 12-adv-2 - 2) }) $
+        eraseTurn emptyTurn {
+          turnName = "landstrider gallant ravager",
+          turnMelee = \_ _ -> [IK.knightGallant IK.ravager]
+        },
+
+        chargeFilter (do { adv <- d6; chargeRoll RerollChargeOneDie (24 - 12-adv-2 - 2) }) $
+        eraseTurn emptyTurn {
+          turnName = "landstrider c.a. gallant stomps",
+          turnMelee = \_ _ ->
+            with (IK.controlledAggressionChaos . IK.stomping) $
+              [IK.knightGallant IK.reaperChainsword]
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "atropos (shooting+lascutter)",
+          turnShooting = \_ -> [IK.knightAtropos],
+          turnMelee = \_ _ -> [IK.knightAtropos]
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "knight styrix (shooting+claw)",
+          turnShooting = \_ -> [IK.knightStyrix [twin IK.radCleanser]],
+          turnMelee = \_ _ -> [IK.knightStyrix [twin IK.radCleanser]]
+        }
+      ]
+
+
+plagueMarineTests :: IO ()
+plagueMarineTests = do
+    analysisToSvgFile "/tmp/plague-distrib.svg"
+      [ AnalysisConfig ByTarget (SlainModels RevDistributionPlot) plagueMarineCounters [DG.plagueMarineModel]
+      ]
+
+    return ()
+  where
+    plagueMarineCounters =
+      [
+        eraseTurn emptyTurn {
+          turnName = "malleus prometheus",
+          turnShooting = \_ ->
+            with (em_model %~ Inq.quarryBonus Inq.OrdoMalleus) $
+              [Inq.landraiderPrometheus]
+        },
+        eraseTurn emptyTurn {
+          turnName = "psybolt SR w/Draigo",
+          turnShooting = \_ ->
+            within GK.draigoAura $ with (rapidFiring . GK.psyboltAmmo) $
+              [Marines.stormravenWith [hurricaneBolter, hurricaneBolter, twin heavyBolter]]
+        },
+        eraseTurn emptyTurn {
+          turnName = "psybolt 10x SS w/Draigo",
+          turnShooting = \_ ->
+            within GK.draigoAura $ with (rapidFiring . GK.psyboltAmmo) $
+              GK.strikeSquad 10 GK.twoFalchions
+        },
+        eraseTurn emptyTurn {
+          turnName = "2x stormhawk AssCan+HB w/Draigo",
+          turnShooting = \_ ->
+            within GK.draigoAura $ with moving $
+              two [Marines.stormhawkWith (two [assaultCannon] ++ two [heavyBolter])]
+        },
+        eraseTurn emptyTurn {
+          turnName = "2 helverins",
+          turnShooting = \_ -> two [IK.armigerHelverin]
+        },
+        eraseTurn emptyTurn {
+          turnName = "3 protector autocannon ironstriders",
+          turnShooting = \_ ->
+            with AdMech.protectorDoctrinaImperative $
+              replicate 3 AdMech.autocannonIronstrider
+        },
+        eraseTurn emptyTurn {
+          turnName = "2 protector dakkabots RR1",
+          turnShooting = \_ ->
+            within AdMech.dominusAura $
+              AdMech.dakkabots 2 AdMech.Protector
+        }
+      ]
+
+
+arcWeaponryTests :: IO ()
+arcWeaponryTests = do
+    analysisToSvgFile "/tmp/arc-weaponry.svg"
+      [ AnalysisConfig ByTarget AverageWounds                      (rangedWeaponry ++ meleeBreachers) vehicles
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) rangedWeaponry vehicles
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) meleeBreachers vehicles
+      ]
+
+    return ()
+  where
+    vehicles =
+        [ Marines.predator
+        , Marines.stormraven
+        ]
+
+    rangedWeaponry =
+      [
+        eraseTurn emptyTurn {
+          turnName = "6 mindlock rr1 arc kataphrons",
+
+          turnShooting = \_ ->
+            within AdMech.dominusAura $
+              with AdMech.neosphericMindlock $
+                replicate 6 (AdMech.arcKataphron Vehicle)
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "4 mindlock rr1 torsion kataphrons",
+
+          turnShooting = \_ ->
+            within AdMech.dominusAura $
+              with AdMech.neosphericMindlock $
+                replicate 4 AdMech.torsionKataphron
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "6 mindlock rr1 xi-lexum arc kataphrons",
+
+          turnShooting = \_ ->
+            within AdMech.dominusAura $
+              with (AdMech.eyeOfXiLexum . AdMech.neosphericMindlock) $
+                replicate 6 (AdMech.arcKataphron Vehicle)
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "4 mindlock rr1 xi-lexum torsion kataphrons",
+
+          turnShooting = \_ ->
+            within AdMech.dominusAura $
+              with (AdMech.eyeOfXiLexum . AdMech.neosphericMindlock) $
+                replicate 4 AdMech.torsionKataphron
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "6 RF xi-lexum arc rangers",
+
+          turnShooting = \_ ->
+            within AdMech.dominusAura $
+              with (rapidFiring . AdMech.eyeOfXiLexum) $
+                replicate 6 (AdMech.rangerWith (AdMech.arcRifle Vehicle))
+        }
+      ]
+
+    meleeBreachers =
+      [
+        eraseTurn emptyTurn {
+          turnName = "6 hermeticon arc kataphrons",
+
+          turnMelee = \_ _ ->
+            within AdMech.primeHermeticonAura $
+              replicate 6 (AdMech.arcKataphron Vehicle)
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "6 hermeticon machine might arc kataphrons",
+
+          turnMelee = \_ _ ->
+            within AdMech.primeHermeticonAura $
+              with AdMech.invocationOfMachineMight $
+                replicate 6 (AdMech.arcKataphron Vehicle)
+        },
+
+        eraseTurn emptyTurn {
+          turnName = "6 hermeticon hydraulic kataphrons",
+
+          turnMelee = \_ _ ->
+            within AdMech.primeHermeticonAura $
+              with AdMech.invocationOfMachineMight $
+                replicate 6 AdMech.torsionKataphron
+        }
       ]

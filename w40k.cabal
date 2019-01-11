@@ -53,7 +53,7 @@ library
 executable w40k
   hs-source-dirs:      cli
   main-is:             Main.hs
-  other-modules:       GreyKnightTests
+  -- other-modules:       GreyKnightTests
   ghc-options:         -O3 -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , w40k

@@ -131,15 +131,15 @@ ccProbSave ccw tgt =
         (probTrue (ccSaveInv   ccw tgt))
 
 
-ccShrinkModels :: [(Model, CCWeapon)] -> [(Model, CCWeapon)]
-ccShrinkModels = groupWith eqrel sumAttacks
+ccShrinkModels :: [(Model, CCWeapon)] -> [(Int, Model, CCWeapon)]
+ccShrinkModels = groupWith eqrel (\(m,ccw) mccws -> (1 + length mccws, m, ccw))
   where
-    relevantModelFields m = (m^.model_ws, m^.model_str, m^.model_cc_mods)
+    relevantModelFields m = (m^.model_ws, m^.model_att, m^.model_str, m^.model_cc_mods)
+    -- relevantModelFields m = (m^.model_ws, m^.model_str, m^.model_cc_mods)
 
     eqrel :: (Model, CCWeapon) -> (Model, CCWeapon) -> Bool
     eqrel (m1,w1) (m2,w2) = relevantModelFields m1 == relevantModelFields m2 && w1 == w2
 
-    sumAttacks (src, w) srcws = (src, w & ccw_attBonus %~ Dot (Add (numAttacks srcws)))
-
-    numAttacks = sum . map (\(src, w) -> applyIntMod (w^.ccw_attBonus) (src^.model_att))
+    -- sumAttacks (src, w) srcws = (src, w & ccw_attBonus %~ Dot (Add (numAttacks srcws)))
+    -- numAttacks = sum . map (\(src, w) -> applyIntMod (w^.ccw_attBonus) (src^.model_att))
 

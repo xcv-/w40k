@@ -1,7 +1,7 @@
 {-# language RebindableSyntax #-}
 module W40K.Data.Common where
 
-import Prelude hiding (Functor(..), Monad(..))
+import Prelude hiding (Functor(..), Monad(..), sequence)
 import Data.Bool (bool)
 import Data.List (intercalate)
 import Control.Lens
@@ -56,8 +56,64 @@ quad = (rw_shots %~ sumIID 4) . (rw_name %~ ("quad " ++))
 two :: [a] -> [a]
 two a = a ++ a
 
+twoHighest :: Ord a => a -> a -> a -> (a, a)
+twoHighest a b c
+  | a <= b && a <= c = (b, c)
+  | b <= a && b <= c = (a, c)
+  | otherwise        = (a, b)
+
 weaponNames :: [RngWeapon] -> String
 weaponNames rw = intercalate "+" (rw^..traverse.rw_name)
+
+
+-- GENERIC TURN FLOWS
+
+psychicMod :: Psyker -> PsychicPower -> (Model -> Maybe Psyker) -> GenericTurn -> GenericTurn
+psychicMod caster power denier (GenericTurn turn) =
+    eraseTurn turn {
+      turnPsychic = \tgt -> do
+        succeed <- doesManifestPower caster power (denier tgt)
+        (mw0, pr) <- turnPsychic turn tgt
+        return (mw0, (pr, succeed)),
+
+      turnShooting = \(pr, succeed) ->
+        if succeed then
+          with (power^.power_mod) (turnShooting turn pr)
+        else
+          turnShooting turn pr,
+
+      turnCharges = \(pr, _) -> turnCharges turn pr,
+
+      turnMelee = \(pr, succeed) cr ->
+        if succeed then
+          with (power^.power_mod) (turnMelee turn pr cr)
+        else
+          turnMelee turn pr cr
+    }
+
+chargeFilter :: Prob Bool -> GenericTurn -> GenericTurn
+chargeFilter pCharge (GenericTurn turn) =
+    eraseTurn turn {
+      turnCharges = \pr -> do
+        cr <- turnCharges turn pr
+        crFilter <- pCharge
+        return (cr, crFilter),
+
+      turnMelee = \pr (cr, crFilter) -> if crFilter then turnMelee turn pr cr else []
+    }
+
+deepstriking :: ChargeRerolls -> GenericTurn -> GenericTurn
+deepstriking rr (GenericTurn turn) =
+    eraseTurn turn {
+      turnCharges = \pr -> do
+        cr <- turnCharges turn pr
+        ds_cr <- chargeRoll rr 9
+        return (cr, ds_cr),
+
+      turnShooting = \pr -> with moving (turnShooting turn pr),
+
+      turnMelee = \pr (cr, ds_cr) -> if ds_cr then turnMelee turn pr cr else []
+    }
 
 
 -- MODELS
@@ -122,18 +178,19 @@ rhino = meq
 
 -- PSYCHIC
 
-asPsyker :: Model -> PsykerCasting
-asPsyker model = PsykerCasting
-    { _cast_bonus                  = NoMod
-    , _cast_usingPsychicChanneling = False
-    , _cast_psyker                 = model
-    }
+defaultPsyker :: Psyker
+defaultPsyker = Psyker (sequence [d6,d6]) (sequence [d6,d6]) NoMod NoMod
+
+noopPower :: Int -> PsychicPower
+noopPower wc = PsychicPower
+  { _power_castingValue = wc
+  , _power_inflictMortalWounds = \_ _ _ -> return 0
+  , _power_mod = id
+  }
 
 smite :: PsychicPower
-smite = PsychicPower
-    { _power_castingValue = 5
-    , _power_inflictMortalWounds = \_ _ v -> if v > 10 then d6 else d3
-    }
+smite = noopPower 5
+  & power_inflictMortalWounds .~ \_ _ v -> if v > 10 then d6 else d3
 
 
 -- RANGED WEAPONS

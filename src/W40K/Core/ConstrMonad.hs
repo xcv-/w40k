@@ -85,9 +85,9 @@ forM (a:as) f = do
     return (b:bs)
 {-# inlinable forM #-}
 
--- sequence :: (ConstrMonad c m, c a, c [a], c (m [a])) => [m a] -> m [a]
--- sequence mas = forM mas id
--- {-# inline sequence #-}
+sequence :: (ConstrMonad c m, c a, c [a], c (m [a])) => [m a] -> m [a]
+sequence mas = forM mas id
+{-# inline sequence #-}
 
 foldlM' :: (ConstrMonad c m, c a, c b) => (b -> a -> m b) -> b -> [a] -> m b
 foldlM' f !z []     = return z

@@ -1,6 +1,6 @@
 module W40K.Data.ThousandSons where
 
-import Prelude hiding (Functor(..), Monad(..))
+import Prelude hiding (Functor(..), Monad(..), sequence)
 import Control.Lens
 
 import W40K.Core.ConstrMonad
@@ -70,9 +70,14 @@ magnusModel = daemonPrinceModel
   & model_wnd   .~ 18
   & model_name  .~ "magnus the red"
 
-magnusCasting :: PsykerCasting
-magnusCasting = asPsyker magnusModel
-  & cast_bonus .~ Add 2
+magnusPsychicAura :: Psyker -> Psyker
+magnusPsychicAura = psyker_cast_roll .~ sequence [d6rr1, d6rr1]
+
+magnusPsyker :: Psyker
+magnusPsyker = defaultPsyker
+  & psyker_cast_mod .~ Add 2
+  & psyker_deny_mod .~ Add 2
+  & magnusPsychicAura
 
 
 -- RANGED WEAPONS
