@@ -16,6 +16,9 @@ import W40K.Data.Common
 dominusAura :: Aura
 dominusAura = noAura & aura_rng.mod_rrtohit .~ RerollOnes
 
+primeHermeticonAura :: Aura
+primeHermeticonAura = noAura & aura_cc.mod_rrtohit .~ RerollFailed
+
 cawlAura :: Aura
 cawlAura = noAura & aura_rng.mod_rrtohit .~ RerollAll
 
@@ -64,8 +67,20 @@ conquerorDoctrinaImperative em =
   where
     name = em^.em_model.model_name
 
+neosphericMindlock :: Modifier
+neosphericMindlock = em_model.model_rng_mods.mod_tohit +~ 1
+
 eliminationVolley :: Modifier
 eliminationVolley = em_model.model_rng_mods.mod_tohit +~ 1
+
+plasmaSpecialists :: Modifier
+plasmaSpecialists =
+    em_rw.mapped.rw_weapon %~ \w ->
+      if "plasma" `isInfixOf` (w^.w_name) then
+        w & w_dmg              %~ fmap (+1)
+          & w_mods.mod_towound +~ 1
+      else
+        w
 
 wrathOfMars :: Modifier
 wrathOfMars =
@@ -88,6 +103,9 @@ withProtocol proto em =
 radSaturation :: Model -> Model
 radSaturation = (model_tgh -~ 1) . (model_name <>~ " (rad-saturation)")
 
+eyeOfXiLexum :: Modifier
+eyeOfXiLexum = em_model.model_mods.mod_rrtowound .~ RerollOnes
+
 
 -- MODELS
 
@@ -105,6 +123,26 @@ vanguardModel = rangerModel
 
 alpha :: Model -> Model
 alpha = (model_att +~ 1) . (model_ld +~ 1) . (model_name <>~ " alpha")
+
+kataphronDestroyerModel :: Model
+kataphronDestroyerModel = meq
+  & model_ws          .~ 4
+  & model_bs          .~ 4
+  & model_str         .~ 5
+  & model_tgh         .~ 5
+  & model_wnd         .~ 3
+  & model_att         .~ 2
+  & model_ld          .~ 7
+  & model_save        .~ 4
+  & model_inv         .~ 6
+  & model_ignoreHeavy .~ True
+  & model_name        .~ "kataphron destroyer"
+
+kataphronBreacherModel :: Model
+kataphronBreacherModel = kataphronDestroyerModel
+  & model_att  .~ 3
+  & model_save .~ 3
+  & model_name .~ "kataphron breacher"
 
 ruststalkerModel :: Model
 ruststalkerModel = rangerModel
@@ -204,6 +242,14 @@ radiumCarbine = radiumCarbineDmg1
   & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookModWeapon (radiumCarbineDmg2^.rw_weapon))
   & rw_name     .~ "radium carbine"
 
+arcRifle :: ModelClass -> RngWeapon
+arcRifle mc = bolter
+  & rw_shots    .~ return 1
+  & rw_str      .~ 6
+  & rw_ap       .~ -1
+  & rw_dmg      .~ (if mc == Vehicle then d3 else return 1)
+  & rw_name     .~ "arc rifle"
+
 plasmaCaliver :: RngWeapon
 plasmaCaliver = radiumCarbineDmg1
   & rw_shots    .~ return 2
@@ -225,6 +271,40 @@ transuranicArquebus = lascannon
   & rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalWounds (return 1))
   & rw_name     .~ "transuranic arquebus"
 
+plasmaCulverin :: RngWeapon
+plasmaCulverin = plasmaCaliver
+  & rw_class   .~ Heavy
+  & rw_shots   .~ d6
+  & rw_name    .~ "plasma culverin"
+
+plasmaCulverinOvercharge :: RngWeapon
+plasmaCulverinOvercharge = plasmaCaliverOvercharge
+  & rw_class   .~ Heavy
+  & rw_shots   .~ d6
+  & rw_name    .~ "plasma culverin (overcharge)"
+
+heavyGravCannon_d3 :: RngWeapon
+heavyGravCannon_d3 = heavyBolter
+  & rw_shots    .~ return 5
+  & rw_str      .~ 5
+  & rw_ap       .~ -3
+  & rw_dmg      .~ d3
+  & rw_name     .~ "heavy grav-cannon (D3 dmg)"
+
+heavyArcRifle :: ModelClass -> RngWeapon
+heavyArcRifle mc = heavyBolter
+  & rw_shots    .~ return 2
+  & rw_str      .~ 6
+  & rw_ap       .~ -2
+  & rw_dmg      .~ (if mc == Vehicle then d6 else d3)
+  & rw_name     .~ "heavy arc rifle"
+
+torsionCannon :: RngWeapon
+torsionCannon = lascannon
+  & rw_str      .~ 8
+  & rw_ap       .~ -4
+  & rw_name     .~ "torsion cannon"
+
 flechetteBlaster :: RngWeapon
 flechetteBlaster = boltPistol
   & rw_shots    .~ return 5
@@ -235,6 +315,12 @@ stubcarbine :: RngWeapon
 stubcarbine = boltPistol
   & rw_shots    .~ return 3
   & rw_name     .~ "stubcarbine"
+
+phosphorBlaster :: RngWeapon
+phosphorBlaster = bolter
+  & rw_str      .~ 5
+  & rw_ap       .~ -1
+  & rw_name     .~ "phosphor blaster"
 
 heavyPhosphorBlaster :: RngWeapon
 heavyPhosphorBlaster = heavyBolter
@@ -288,6 +374,21 @@ neutronLaser = lascannon
 
 -- CC WEAPONS
 
+arcClaw :: ModelClass -> CCWeapon
+arcClaw mc = basic_ccw
+  & ccw_strMod .~ Add 1
+  & ccw_ap     .~ -1
+  & ccw_dmg    .~ (if mc == Vehicle then d3 else return 1)
+  & ccw_name   .~ "arc claw"
+
+hydraulicClaw :: CCWeapon
+hydraulicClaw = basic_ccw
+  & ccw_strMod .~ Times 2
+  & ccw_ap     .~ -1
+  & ccw_dmg    .~ d3
+  & ccw_name   .~ "hydraulic claw"
+  & makeUnwieldly
+
 transonicRazor :: CCWeapon
 transonicRazor = basic_ccw
   & ccw_name   .~ "transonic razor"
@@ -331,6 +432,33 @@ vanguardWith :: RngWeapon -> EquippedModel
 vanguardWith rw = basicEquippedModel vanguardModel
   & em_rw    .~ [rw]
   & em_name  .~ "vanguard w/ " ++ (rw^.rw_name)
+
+plasmaKataphron :: EquippedModel
+plasmaKataphron = basicEquippedModel kataphronDestroyerModel
+  & em_rw    .~ [phosphorBlaster, plasmaCulverin]
+  & em_name  .~ "plasma kataphron destroyer"
+
+plasmaKataphronOvercharge :: EquippedModel
+plasmaKataphronOvercharge = basicEquippedModel kataphronDestroyerModel
+  & em_rw    .~ [phosphorBlaster, plasmaCulverinOvercharge]
+  & em_name  .~ "plasma kataphron destroyer (overcharge)"
+
+gravKataphron_d3 :: EquippedModel
+gravKataphron_d3 = basicEquippedModel kataphronDestroyerModel
+  & em_rw    .~ [phosphorBlaster, heavyGravCannon_d3]
+  & em_name  .~ "grav kataphron destroyer (D3 dmg)"
+
+arcKataphron :: ModelClass -> EquippedModel
+arcKataphron mc = basicEquippedModel kataphronBreacherModel
+  & em_rw    .~ [phosphorBlaster, heavyArcRifle mc]
+  & em_ccw   .~ arcClaw mc
+  & em_name  .~ "arc kataphron breacher"
+
+torsionKataphron :: EquippedModel
+torsionKataphron = basicEquippedModel kataphronBreacherModel
+  & em_rw    .~ [phosphorBlaster, torsionCannon]
+  & em_ccw   .~ hydraulicClaw
+  & em_name  .~ "hydraulic/torsion kataphron breacher"
 
 bladesRuststalker :: EquippedModel
 bladesRuststalker = basicEquippedModel ruststalkerModel
