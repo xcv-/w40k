@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     W40K.Core.Chart,
+                       W40K.Core.Chart.R,
                        W40K.Core.ConstrMonad,
                        W40K.Core.Prob,
                        W40K.Core.Mechanics,
@@ -46,7 +47,7 @@ library
                        MemoTrie,
                        math-functions,
                        transformers, mtl, lens, constraints, reflection,
-                       diagrams-lib, diagrams-svg, Chart, Chart-diagrams
+                       singletons, inline-r
   default-language:    Haskell2010
   ghc-options:         -O3
 

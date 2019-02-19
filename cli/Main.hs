@@ -9,7 +9,8 @@ import Data.List (isInfixOf)
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
-import W40K.Core.Chart
+import W40K.Core.Chart (AnalysisConfig(..), AnalysisOrder(..), ProbPlotType(..), AnalysisFn(..))
+import qualified W40K.Core.Chart.R as R
 import W40K.Core.Mechanics
 import W40K.Core.Psychic
 
@@ -38,14 +39,14 @@ main = do
 
 chaosPrimarchTests :: IO ()
 chaosPrimarchTests = do
-    analysisToSvgFile "/tmp/primarchs-avg.svg"
-      [ AnalysisConfig ByTarget AverageWounds                      mixedAttackers chaosPrimarchs
-      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) mixedAttackers chaosPrimarchs
+    R.analysisToFile "/tmp/primarchs-mixed.svg"
+      [--AnalysisConfig ByTarget AverageWounds                      mixedAttackers chaosPrimarchs
+       AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) mixedAttackers chaosPrimarchs
       ]
 
-    analysisToSvgFile "/tmp/primarchs-distrib.svg"
-      [ AnalysisConfig ByTarget AverageWounds                      bigKnights     chaosPrimarchs
-      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) bigKnights     chaosPrimarchs
+    R.analysisToFile "/tmp/primarchs-knights.svg"
+      [-- AnalysisConfig ByTarget AverageWounds                      bigKnights     chaosPrimarchs
+       AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) bigKnights     chaosPrimarchs
       ]
 
     return ()
@@ -119,6 +120,22 @@ chaosPrimarchTests = do
           }
         ],
 
+        mconcat [
+          eraseTurn emptyTurn {
+            turnName = "atropos (shooting+lascutter)",
+            turnShooting = \_ -> [IK.knightAtropos],
+            turnMelee = \_ _ -> [IK.knightAtropos]
+          },
+
+          chargeFilter (chargeRoll RerollChargeOneDie 10) $
+          eraseTurn emptyTurn {
+            turnName = "3 conqueror dragoons",
+            turnMelee = \_ _ ->
+              with AdMech.conquerorDoctrinaImperative $
+                replicate 3 AdMech.taserLanceDragoon
+          }
+        ],
+
         -- AdMech
         eraseTurn emptyTurn {
           turnName = "5 EV cawl WoM dakkabots + 3 rr1 plasmaphrons",
@@ -180,7 +197,7 @@ chaosPrimarchTests = do
 
 plagueMarineTests :: IO ()
 plagueMarineTests = do
-    analysisToSvgFile "/tmp/plague-distrib.svg"
+    R.analysisToFile "/tmp/plague-distrib.svg"
       [ AnalysisConfig ByTarget (SlainModels RevDistributionPlot) plagueMarineCounters [DG.plagueMarineModel]
       ]
 
@@ -233,9 +250,10 @@ plagueMarineTests = do
 
 arcWeaponryTests :: IO ()
 arcWeaponryTests = do
-    analysisToSvgFile "/tmp/arc-weaponry.svg"
-      [ AnalysisConfig ByTarget AverageWounds                      (rangedWeaponry ++ meleeBreachers) vehicles
-      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) rangedWeaponry vehicles
+    R.analysisToFile "/tmp/arc-weaponry.svg"
+      [
+      -- AnalysisConfig ByTarget AverageWounds                      (rangedWeaponry ++ meleeBreachers) vehicles
+       AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) rangedWeaponry vehicles
       , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) meleeBreachers vehicles
       ]
 
