@@ -10,17 +10,14 @@ module W40K.Core.Chart
   , mapResultsTable
   , analyzeByAttacker
   , analyzeByTarget
-  , defaultPlotWidth
-  , defaultPlotHeight
   ) where
-
 
 import Control.DeepSeq (NFData(..))
 import Control.Lens
 import Debug.Trace
 
 import qualified W40K.Core.ConstrMonad as CM
-import W40K.Core.Prob (Prob, QQ, fmapProbMonotone, mean)
+import W40K.Core.Prob (Prob, QQ, fmapProbMonotone, addImpossibleEvents, mean)
 import W40K.Core.Mechanics
 import W40K.Core.Util (whnfItems)
 
@@ -65,10 +62,10 @@ analysisFnName (NumWounds _)      = "wounds"
 analysisFnName (NumWoundsMax _)   = "wounds"
 analysisFnName (SlainModels _)    = "slain models"
 analysisFnName (SlainModelsInt _) = "wholly slain models"
-analysisFnName ProbKill           = ""
-analysisFnName ProbKillOne        = ""
-analysisFnName AverageWounds      = ""
-analysisFnName WoundingSummary    = ""
+analysisFnName ProbKill           = "kill probability"
+analysisFnName ProbKillOne        = "kill probability"
+analysisFnName AverageWounds      = "average wounds"
+analysisFnName WoundingSummary    = "wounding summary"
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.as_model.model_name)
@@ -83,17 +80,17 @@ analysisFnTgtName WoundingSummary    = (^.as_model.model_name)
 applyAnalysisFn :: (Ord pr, Ord cr) => AnalysisFn tgt r -> Turn pr cr -> tgt -> r
 applyAnalysisFn fn turn tgt =
     case fn of
-      NumWounds _       -> turnNumWounds turn (tgt^.as_model)
-      NumWoundsMax _    -> turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
+      NumWounds _      -> addImpossibleEvents $ turnNumWounds turn (tgt^.as_model)
+      NumWoundsMax _   -> addImpossibleEvents $ turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
 
-      SlainModels _     -> turnNumSlainModels turn (tgt^.as_model)
-      SlainModelsInt pt -> turnNumSlainModelsInt turn (tgt^.as_model)
+      SlainModels _    -> turnNumSlainModels turn (tgt^.as_model)
+      SlainModelsInt _ -> addImpossibleEvents $ turnNumSlainModelsInt turn (tgt^.as_model)
 
-      ProbKill          -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
-      ProbKillOne       -> turnProbKill turn 1 (tgt^.as_model)
+      ProbKill         -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
+      ProbKillOne      -> turnProbKill turn 1 (tgt^.as_model)
 
-      AverageWounds     -> mean $ applyAnalysisFn WoundingSummary turn tgt
-      WoundingSummary   -> fmapProbMonotone fromIntegral $ turnNumWounds turn (tgt^.as_model)
+      AverageWounds    -> mean $ applyAnalysisFn WoundingSummary turn tgt
+      WoundingSummary  -> fmapProbMonotone fromIntegral $ turnNumWounds turn (tgt^.as_model)
 
 
 forceResults :: AnalysisResults -> AnalysisResults
@@ -105,32 +102,31 @@ forceResults (AnalysisResults fn results) =
 analyzeByAttacker :: AnalysisFn tgt r -> [GenericTurn] -> [tgt] -> AnalysisResults
 analyzeByAttacker fn turns tgts =
     forceResults $ AnalysisResults fn
-      [ (title, [ trace (title ++ " " ++ legend) (legend, applyAnalysisFn fn turn tgt)
+      [ (title, [ trace traceText (legend, applyAnalysisFn fn turn tgt)
                 | tgt <- tgts
                 , let legend = legendTgt tgt
+                , let traceText = analysisFnName fn ++ " " ++ title ++ " " ++ legend
                 ])
       | GenericTurn turn <- turns
       , let title = titleAtt (turnName turn)
       ]
   where
-    titleAtt name = analysisFnName fn ++ " attacking with " ++ name
     legendTgt tgt = "vs " ++ analysisFnTgtName fn tgt
+    titleAtt name = "attacking with " ++ name
 
 analyzeByTarget :: AnalysisFn tgt r -> [GenericTurn] -> [tgt] -> AnalysisResults
 analyzeByTarget fn turns tgts =
     forceResults $ AnalysisResults fn
-      [ (title, [ trace (title ++ " " ++ legend) (legend, applyAnalysisFn fn turn tgt)
+      [ (title, [ trace traceText (legend, applyAnalysisFn fn turn tgt)
                 | GenericTurn turn <- turns
                 , let legend = legendAtt (turnName turn)
+                , let traceText = analysisFnName fn ++ " " ++ title ++ " " ++ legend
                 ])
       | tgt <- tgts
       , let title = titleTgt tgt
       ]
   where
     legendAtt name = "with " ++ name
-    titleTgt tgt = analysisFnName fn ++ " targeting " ++ analysisFnTgtName fn tgt
 
+    titleTgt tgt = "targeting " ++ analysisFnTgtName fn tgt
 
-defaultPlotWidth, defaultPlotHeight :: Num a => a
-defaultPlotWidth = 1280
-defaultPlotHeight = 720

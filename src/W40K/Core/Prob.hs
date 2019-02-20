@@ -29,6 +29,7 @@ module W40K.Core.Prob
   , foldAssocIID
   , foldIID
   , sumIID
+  , addImpossibleEvents
   , distribution
   , revDistribution
   , summary
@@ -246,6 +247,21 @@ foldIID = foldAssocIID mappend mempty
 -- TODO: Option to use Central Limit Theorem for sufficiently large n
 sumIID :: (Ord a, Num a) => Int -> Prob a -> Prob a
 sumIID = foldAssocIID (+) 0
+
+addImpossibleEvents :: (Ord a, Enum a) => Prob a -> Prob a
+addImpossibleEvents prob =
+    let es = events prob
+        as = [a | Event a _ <- es]
+    in
+        Prob $ SortedList.fromAscList $ merge es (zipWith Event [minimum as .. maximum as] (repeat 0))
+  where
+    merge es []  = es
+    merge [] es' = es'
+    merge ees@(e@(Event a _):es)
+          ees'@(e'@(Event a' _):es')
+      | a == a' = e : merge es es'
+      | a <  a' = e : merge es ees'
+      | a >  a' = e' : merge ees es'
 
 distribution :: Ord a => Prob a -> [Event a]
 distribution = scanl1 sumEvents . events

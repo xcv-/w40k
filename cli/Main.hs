@@ -40,12 +40,14 @@ main = R.withEmbeddedR $ do
 chaosPrimarchTests :: IO ()
 chaosPrimarchTests = do
     R.analysisToFile "/tmp/primarchs-mixed.png"
-      [ AnalysisConfig ByTarget WoundingSummary                    mixedAttackers chaosPrimarchs
+      [ AnalysisConfig ByTarget ProbKillOne                        mixedAttackers chaosPrimarchs
+      , AnalysisConfig ByTarget WoundingSummary                    mixedAttackers chaosPrimarchs
       , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) mixedAttackers chaosPrimarchs
       ]
 
     R.analysisToFile "/tmp/primarchs-knights.png"
-      [ AnalysisConfig ByTarget WoundingSummary                    bigKnights     chaosPrimarchs
+      [ AnalysisConfig ByTarget ProbKillOne                        bigKnights     chaosPrimarchs
+      , AnalysisConfig ByTarget WoundingSummary                    bigKnights     chaosPrimarchs
       , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) bigKnights     chaosPrimarchs
       ]
 
@@ -198,7 +200,8 @@ chaosPrimarchTests = do
 plagueMarineTests :: IO ()
 plagueMarineTests = do
     R.analysisToFile "/tmp/plague-distrib.png"
-      [ AnalysisConfig ByTarget (SlainModels RevDistributionPlot) plagueMarineCounters [DG.plagueMarineModel]
+      [ AnalysisConfig ByTarget  ProbKill                         plagueMarineCounters [(5, DG.plagueMarineModel)]
+      , AnalysisConfig ByTarget (SlainModels RevDistributionPlot) plagueMarineCounters [DG.plagueMarineModel]
       ]
 
     return ()

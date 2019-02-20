@@ -43,6 +43,11 @@ moreColors = cycle $ map opaque
    greenyellow, lightpink, olive, orange, red, yellow]
 
 
+defaultPlotWidth, defaultPlotHeight :: Num a => a
+defaultPlotWidth = 1280
+defaultPlotHeight = 720
+
+
 
 eventChart :: Chart.PlotValue a => String -> [Event a] -> [Event a] -> (a, Chart.PlotLines a Chart.Percent)
 eventChart title relevantEvts evts =
