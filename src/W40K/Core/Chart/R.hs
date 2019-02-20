@@ -30,7 +30,6 @@ import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone,
                        mean, stDev)
 
 
-
 -- R helpers
 
 preamble :: R s ()
@@ -44,12 +43,6 @@ toInt32 = fromIntegral
 
 toRList :: [SomeSEXP s] -> R s (SomeSEXP s)
 toRList xs = fmap R.SomeSEXP $ HExp.unhexp $ HExp.Vector (toInt32 $ length xs) (fromList xs)
-
-(%>%) :: R s (SomeSEXP s) -> R s (SomeSEXP s) -> R s (SomeSEXP s)
-rx %>% rf = do
-    x <- rx
-    f <- rf
-    [r| f_hs(x_hs) |]
 
 
 -- main logic
