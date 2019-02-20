@@ -30,13 +30,14 @@ data AnalysisOrder = ByAttacker | ByTarget
 data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
 
 data AnalysisFn tgt r where
-    NumWounds      :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
-    NumWoundsMax   :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
-    SlainModels    :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob QQ)
-    SlainModelsInt :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
-    ProbKill       :: IsModel tgt =>                 AnalysisFn (Int, tgt) QQ
-    ProbKillOne    :: IsModel tgt =>                 AnalysisFn tgt        QQ
-    AverageWounds  :: IsModel tgt =>                 AnalysisFn tgt        QQ
+    NumWounds       :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    NumWoundsMax    :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    SlainModels     :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob QQ)
+    SlainModelsInt  :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    ProbKill        :: IsModel tgt =>                 AnalysisFn (Int, tgt) QQ
+    ProbKillOne     :: IsModel tgt =>                 AnalysisFn tgt        QQ
+    AverageWounds   :: IsModel tgt =>                 AnalysisFn tgt        QQ
+    WoundingSummary :: IsModel tgt =>                 AnalysisFn tgt        (Prob QQ)
 
 
 data AnalysisConfig = forall tgt r. AnalysisConfig
@@ -64,9 +65,10 @@ analysisFnName (NumWounds _)      = "wounds"
 analysisFnName (NumWoundsMax _)   = "wounds"
 analysisFnName (SlainModels _)    = "slain models"
 analysisFnName (SlainModelsInt _) = "wholly slain models"
-analysisFnName ProbKill           = "p. killing"
-analysisFnName ProbKillOne        = "p. killing one"
-analysisFnName AverageWounds      = "avg wounds"
+analysisFnName ProbKill           = ""
+analysisFnName ProbKillOne        = ""
+analysisFnName AverageWounds      = ""
+analysisFnName WoundingSummary    = ""
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.as_model.model_name)
@@ -76,6 +78,7 @@ analysisFnTgtName (SlainModelsInt _) = (^.as_model.model_name)
 analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.as_model.model_name
 analysisFnTgtName ProbKillOne        = (^.as_model.model_name)
 analysisFnTgtName AverageWounds      = (^.as_model.model_name)
+analysisFnTgtName WoundingSummary    = (^.as_model.model_name)
 
 applyAnalysisFn :: (Ord pr, Ord cr) => AnalysisFn tgt r -> Turn pr cr -> tgt -> r
 applyAnalysisFn fn turn tgt =
@@ -89,7 +92,8 @@ applyAnalysisFn fn turn tgt =
       ProbKill          -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
       ProbKillOne       -> turnProbKill turn 1 (tgt^.as_model)
 
-      AverageWounds     -> mean $ fmapProbMonotone fromIntegral $ turnNumWounds turn (tgt^.as_model)
+      AverageWounds     -> mean $ applyAnalysisFn WoundingSummary turn tgt
+      WoundingSummary   -> fmapProbMonotone fromIntegral $ turnNumWounds turn (tgt^.as_model)
 
 
 forceResults :: AnalysisResults -> AnalysisResults

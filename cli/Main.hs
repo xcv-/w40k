@@ -31,7 +31,7 @@ import qualified W40K.Data.Tyranids        as Tyranids
 
 
 main :: IO ()
-main = do
+main = R.withEmbeddedR $ do
     chaosPrimarchTests
     plagueMarineTests
     arcWeaponryTests
@@ -39,14 +39,14 @@ main = do
 
 chaosPrimarchTests :: IO ()
 chaosPrimarchTests = do
-    R.analysisToFile "/tmp/primarchs-mixed.svg"
-      [--AnalysisConfig ByTarget AverageWounds                      mixedAttackers chaosPrimarchs
-       AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) mixedAttackers chaosPrimarchs
+    R.analysisToFile "/tmp/primarchs-mixed.png"
+      [ AnalysisConfig ByTarget WoundingSummary                    mixedAttackers chaosPrimarchs
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) mixedAttackers chaosPrimarchs
       ]
 
-    R.analysisToFile "/tmp/primarchs-knights.svg"
-      [-- AnalysisConfig ByTarget AverageWounds                      bigKnights     chaosPrimarchs
-       AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) bigKnights     chaosPrimarchs
+    R.analysisToFile "/tmp/primarchs-knights.png"
+      [ AnalysisConfig ByTarget WoundingSummary                    bigKnights     chaosPrimarchs
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) bigKnights     chaosPrimarchs
       ]
 
     return ()
@@ -197,7 +197,7 @@ chaosPrimarchTests = do
 
 plagueMarineTests :: IO ()
 plagueMarineTests = do
-    R.analysisToFile "/tmp/plague-distrib.svg"
+    R.analysisToFile "/tmp/plague-distrib.png"
       [ AnalysisConfig ByTarget (SlainModels RevDistributionPlot) plagueMarineCounters [DG.plagueMarineModel]
       ]
 
@@ -250,10 +250,9 @@ plagueMarineTests = do
 
 arcWeaponryTests :: IO ()
 arcWeaponryTests = do
-    R.analysisToFile "/tmp/arc-weaponry.svg"
-      [
-      -- AnalysisConfig ByTarget AverageWounds                      (rangedWeaponry ++ meleeBreachers) vehicles
-       AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) rangedWeaponry vehicles
+    R.analysisToFile "/tmp/arc-weaponry.png"
+      [ AnalysisConfig ByTarget WoundingSummary                    (rangedWeaponry ++ meleeBreachers) vehicles
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) rangedWeaponry vehicles
       , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) meleeBreachers vehicles
       ]
 

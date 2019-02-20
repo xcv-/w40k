@@ -35,6 +35,7 @@ module W40K.Core.Prob
   , summaryInt
   , mean
   , variance
+  , stDev
   , maxEvent
   ) where
 
@@ -271,6 +272,9 @@ mean prob = sum [k * p | Event k p <- events prob]
 
 variance :: Prob QQ -> QQ
 variance prob = sum [k^2 * p | Event k p <- events prob] - mean prob^2
+
+stDev :: Prob QQ -> QQ
+stDev prob = sqrt (variance prob)
 
 maxEvent :: Ord a => Prob a -> a
 maxEvent x = maximum [a | Event a _ <- events x]

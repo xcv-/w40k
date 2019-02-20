@@ -6,10 +6,12 @@
 {-# language TypeApplications #-}
 module W40K.Core.Chart.R
   ( analysisToFile
+  , withEmbeddedR
   ) where
 
-import Control.Monad (forM, (<=<))
-import Control.Monad.IO (MonadIO(liftIO))
+import GHC.Exts (IsList(..))
+import Control.Monad (forM)
+
 import Data.Int (Int32)
 import Data.Functor (void)
 import Data.Singletons (SingI(..))
@@ -20,9 +22,14 @@ import Language.R.QQ (r)
 import qualified Foreign.R       as FR
 import qualified Language.R      as R
 import qualified Language.R.HExp as HExp
+import qualified H.Prelude as H
+
+import Unsafe.TrueName
 
 import W40K.Core.Chart
-import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone, events, distribution, revDistribution)
+import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone,
+                       events, distribution, revDistribution,
+                       mean, stDev)
 
 
 
@@ -31,35 +38,45 @@ import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone, events, distributi
 preamble :: R s ()
 preamble = void [r|
     require(tidyverse)
-
-    require(ggplot2)
     require(gridExtra)
     |]
 
 toInt32 :: Int -> Int32
 toInt32 = fromIntegral
 
-nilValue :: SEXP s R.Nil
-nilValue = FR.release R.nilValue
-
-
 toRList :: [SomeSEXP s] -> R s (SomeSEXP s)
-toRList = (\ls -> [r| ls_hs |]) <=< go
-  where
-    go []     = return (R.SomeSEXP nilValue)
-    go [x]    =
-        fmap R.SomeSEXP $ R.unSomeSEXP x $ \sexp_x -> liftIO $ FR.cons sexp_x nilValue
-        -- fmap R.SomeSEXP . HExp.unhexp $ R.unSomeSEXP x (\sexp_x -> FR.cons sexp_x nilValue)
-    go (x:xs) = do
-        sexp_xs <- fmap (R.cast @R.List sing) (go xs)
-        fmap R.SomeSEXP $ R.unSomeSEXP x $ \sexp_x -> liftIO $ FR.cons sexp_x sexp_xs
-        --fmap R.SomeSEXP . HExp.unhexp $ R.unSomeSEXP x (\sexp_x -> FR.cons sexp_x sexp_xs)
-
+toRList xs = fmap R.SomeSEXP $ HExp.unhexp $ HExp.Vector (toInt32 $ length xs) (fromList xs)
 
 
 -- main logic
 
 data GGPlot s = GGPlot { plotObj :: SomeSEXP s, plotWidth :: Int, plotHeight :: Int }
+
+
+tidySummaryTable :: AnalysisResultsTable (Prob QQ) -> R s (SomeSEXP s)
+tidySummaryTable results = do
+    let enumerate = zip [(0 :: Int32)..]
+
+    results_r <- forM (enumerate results) $ \(i, (plotTitle, plotData)) ->
+        forM (enumerate plotData) $ \(j, (legendEntry, prob)) ->
+            let (m, s) = (mean prob, stDev prob)
+            in [r|
+                data_frame(
+                    title_idx  = i_hs,
+                    title      = plotTitle_hs,
+                    legend_idx = j_hs,
+                    legend     = legendEntry_hs,
+                    mean       = m_hs,
+                    std        = s_hs)
+            |]
+
+    resultsFrames <- toRList (concat results_r)
+    [r|
+      bind_rows(resultsFrames_hs) %>%
+        mutate(
+          title = str_wrap(title, width=40),
+          legend = str_wrap(legend, width=40))
+       |]
 
 
 tidyProbResultsTable :: (Ord a, R.Literal [a] ty) => ProbPlotType -> AnalysisResultsTable (Prob a) -> R s (SomeSEXP s)
@@ -80,7 +97,13 @@ tidyProbResultsTable ptype results = do
             |]
 
     resultsFrames <- toRList (concat results_r)
-    [r| bind_rows(resultsFrames_hs) |]
+    [r|
+      bind_rows(resultsFrames_hs) %>%
+        mutate(
+          prob = 100*prob,
+          title = str_wrap(title, width=40),
+          legend = str_wrap(legend, width=40))
+      |]
   where
     probPoints :: Ord a => Prob a -> ([a], [QQ])
     probPoints =
@@ -105,18 +128,65 @@ tidyProbResultsTable ptype results = do
       | otherwise = e : takeUntilAccumPercent (q - p) es
 
 
+analysisErrBarPlot :: String -> AnalysisResultsTable (Prob QQ) -> R s (GGPlot s)
+analysisErrBarPlot title results = do
+    df <- tidySummaryTable results
 
+    obj <- [r|
+      facet_names = df_hs$title
+      names(facet_names) = df_hs$title_idx
 
-analysisBarPlot :: String -> AnalysisResultsTable QQ -> R s (GGPlot s)
-analysisBarPlot = undefined
+      df_hs %>%
+        ggplot(aes(x=legend_idx, y=mean, ymin=mean-std, ymax=mean+std, fill=legend)) +
+          geom_col(position=position_dodge()) +
+          geom_errorbar(position=position_dodge(), width=0.5) +
+          labs(
+            y = paste('avg', title_hs, '± std')) +
+          theme(
+            text = element_text(size=6),
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = 'bottom') +
+          guides(
+            fill = guide_legend(nrow=3)) +
+          facet_wrap(
+            facets = vars(title_idx),
+            nrow=1,
+            labeller = labeller(title_idx=facet_names))
+      |]
+    return (GGPlot obj 12 7)
 
 probAnalysisChart :: (Ord a, R.Literal [a] ty) => ProbPlotType -> AnalysisResultsTable (Prob a) -> R s (GGPlot s)
 probAnalysisChart ptype results = do
     df <- tidyProbResultsTable ptype results
-    [r| write_tsv(df_hs, 'df.tsv') |]
 
-    obj <- [r| ggplot(df_hs, aes(x=event, y=prob, color=legend_idx)) + geom_line() |]
-    return (GGPlot obj 2 1)
+    obj <- [r|
+      facet_names = df_hs$title
+      names(facet_names) = df_hs$title_idx
+
+      df_hs %>%
+        ggplot(aes(x=event, y=prob, group=legend_idx, color=legend)) +
+          geom_line() +
+          geom_point(size=0.6) +
+          labs(
+            y = 'Probability (%)') +
+          theme(
+            text = element_text(size=6),
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = 'bottom') +
+          guides(
+            color = guide_legend(nrow=3)) +
+          facet_wrap(
+            facets = vars(title_idx),
+            ncol=1,
+            scales='free',
+            labeller = labeller(title_idx=facet_names)) +
+          scale_x_continuous(breaks = function(x) seq(ceiling(x[1]), floor(x[2]), by = 1))
+      |]
+    return (GGPlot obj 12 (3 + 6*length results))
 
 
 plotResults :: AnalysisResults -> R s (GGPlot s)
@@ -126,9 +196,10 @@ plotResults (AnalysisResults fn results) =
       NumWoundsMax   ptype -> probAnalysisChart ptype (int32results results)
       SlainModelsInt ptype -> probAnalysisChart ptype (int32results results)
       SlainModels    ptype -> probAnalysisChart ptype results
-      ProbKill             -> analysisBarPlot "kill probability (%)" results
-      ProbKillOne          -> analysisBarPlot "kill probability (%)" results
-      AverageWounds        -> analysisBarPlot "average wounds"       results
+      ProbKill             -> undefined -- analysisBarPlot "kill probability (%)" results
+      ProbKillOne          -> undefined -- analysisBarPlot "kill probability (%)" results
+      AverageWounds        -> undefined -- analysisBarPlot "average wounds"       results
+      WoundingSummary      -> analysisErrBarPlot "wounds" results
   where
     int32results = mapResultsTable (fmapProbMonotone toInt32)
 
@@ -147,12 +218,16 @@ analyze (AnalysisConfig order fn turns tgts) =
 
 combinePlotsVert :: [GGPlot s] -> R s (GGPlot s)
 combinePlotsVert plots = do
-    let width = if null plots then 0 else maximum (map plotWidth plots)
-    let height = sum (map plotHeight plots)
+    let widths = map plotWidth plots
+    let width = if null widths then 0 else maximum widths
 
-    plotObjs <- toRList (map plotObj plots)
+    let heights = map plotHeight plots
+        heights32 = map toInt32 heights
+    let height = sum heights
 
-    obj <- [r| arrangeGrob(plotObjs_hs, ncol=1) |]
+    objs <- toRList (map plotObj plots)
+
+    obj <- [r| arrangeGrob(grobs=objs_hs, ncol=1, heights=heights32_hs) |]
 
     return GGPlot { plotObj=obj, plotWidth=width, plotHeight=height }
 
@@ -179,3 +254,6 @@ analysisToFile path cfgs =
       (rs, plt) <- analyzeAll cfgs
       savePlot path plt
       return rs
+
+withEmbeddedR :: IO a -> IO a
+withEmbeddedR = R.withEmbeddedR R.defaultConfig
