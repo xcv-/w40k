@@ -8,15 +8,24 @@ license-file:        LICENSE
 author:              xcv-
 maintainer:          example@example.com
 copyright:           2017 xcv-
-category:            Game
+category:            Statistics
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+flag ggplot
+  description:   Enable the ggplot plotting backend
+  default:       True
+  manual:        True
+
+flag chart-diagrams
+  description:   Enable the Chart-diagrams plotting backend
+  default:       True
+  manual:        True
+
 library
   hs-source-dirs:      src
   exposed-modules:     W40K.Core.Chart,
-                       W40K.Core.Chart.R,
                        W40K.Core.ConstrMonad,
                        W40K.Core.Prob,
                        W40K.Core.Mechanics,
@@ -41,13 +50,19 @@ library
                        W40K.Data.Tau,
                        W40K.Data.ThousandSons,
                        W40K.Data.Tyranids
+
   build-depends:       base >= 4.7 && < 5, ghc-prim,
-                       deepseq, parallel,
-                       vector, vector-algorithms,
-                       MemoTrie,
-                       math-functions,
-                       transformers, mtl, lens, constraints, reflection,
-                       singletons, inline-r
+                       deepseq, parallel, transformers, mtl, lens,
+                       MemoTrie, math-functions
+  if flag(chart-diagrams)
+    build-depends:     constraints, reflection,
+                       Chart, diagrams-lib, diagrams-svg, Chart-diagrams
+    exposed-modules:   W40K.Core.Chart.Chart
+
+  if flag(ggplot)
+    build-depends:     singletons, inline-r
+    exposed-modules:   W40K.Core.Chart.R
+
   default-language:    Haskell2010
   ghc-options:         -O3
 

@@ -51,12 +51,6 @@ import Data.List (foldl', sort, sortBy, span)
 import Data.MemoTrie (memo, memo2)
 import Data.Monoid (Sum(..))
 
-import Data.Vector (Vector)
-import Data.Vector.Mutable (STVector)
-import qualified Data.Vector as Vec
-import qualified Data.Vector.Mutable as MVec
-import qualified Data.Vector.Algorithms.Merge as Vec (sort)
-
 import Numeric.SpecFunctions (choose)
 
 import Debug.Trace (trace)
