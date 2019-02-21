@@ -16,11 +16,13 @@ module W40K.Core.Chart.Chart
   , mainWithAnalysis
   ) where
 
+import Data.Char (toUpper)
 import Data.Coerce (coerce)
 import Data.Constraint (Dict(..))
 import Data.Reflection (Given(..), give)
 
-import Control.Arrow ((***))
+import Control.Arrow (second)
+import Control.Lens
 import Control.Monad (forM_, (<=<))
 import Control.Monad.State (evalState, evalStateT, execStateT)
 import Control.DeepSeq (NFData, force)
@@ -92,8 +94,8 @@ revDistributionChart title prob = eventChart title (relevantEvents revDist) revD
     revDist = revDistribution prob
     relevantEvents = takeWhile (\(Event _ p) -> p >= 1 - 0.99)
 
-probAnalysisChart :: (Ord a, Chart.PlotValue a) => ProbPlotType -> AnalysisResultsTable (Prob a) -> [Chart.Layout a Chart.Percent]
-probAnalysisChart plotType =
+probAnalysisChart :: (Ord a, Chart.PlotValue a) => String -> ProbPlotType -> AnalysisResultsTable (Prob a) -> [Chart.Layout a Chart.Percent]
+probAnalysisChart xlabel plotType =
       map (uncurry buildLayout)
     . uniformLimits
     . map (_2.mapped %~ uncurry (chartFn plotType))
@@ -107,6 +109,8 @@ probAnalysisChart plotType =
     buildLayout :: Chart.PlotValue a => String -> [Chart.PlotLines a Chart.Percent] -> Chart.Layout a Chart.Percent
     buildLayout title linePlots = def
         & Chart.layout_title .~ title
+        & Chart.layout_x_axis . Chart.laxis_title .~ over _head toUpper xlabel
+        & Chart.layout_y_axis . Chart.laxis_title .~ "Probability (%)"
         & Chart.layout_plots .~ map Chart.toPlot (zipWith setColor moreColors linePlots)
       where
        setColor = set (Chart.plot_lines_style . Chart.line_color)
@@ -136,7 +140,7 @@ instance Given [String] => Chart.PlotValue BarPlotIndex where
     autoAxis  = coerce (Chart.autoIndexAxis @Chart.PlotIndex given)
 
 analysisBarPlot :: String -> AnalysisResultsTable QQ -> (Dict (Chart.PlotValue BarPlotIndex), Chart.Layout BarPlotIndex QQ)
-analysisBarPlot title results =
+analysisBarPlot ylabel results =
     let (titles,    groups) = unzip results
         titleIndexes        = map (BarPlotIndex . fst) (Chart.addIndexes titles)
 
@@ -155,7 +159,7 @@ analysisBarPlot title results =
                                   | any (/= sampleGroupTitles) otherTitles -> error ("mismatching group titles: " ++ show barTitles)
                                   | otherwise                              -> [Chart.plotBars barPlot]
 
-    in give titles (Dict, def & Chart.layout_title .~ title
+    in give titles (Dict, def & Chart.layout_y_axis . Chart.laxis_title .~ over _head toUpper ylabel
                               & Chart.layout_plots .~ layoutPlots)
 
 
@@ -179,19 +183,25 @@ plotResults :: AnalysisResults -> IO (Diagram SVG)
 plotResults (AnalysisResults fn results) =
     fmap combinePlotsVert $
       case fn of
-        NumWounds      ptype -> renderLayouts $ probAnalysisChart ptype results
-        NumWoundsMax   ptype -> renderLayouts $ probAnalysisChart ptype results
-        SlainModels    ptype -> renderLayouts $ probAnalysisChart ptype results
-        SlainModelsInt ptype -> renderLayouts $ probAnalysisChart ptype results
+        NumWounds      ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
+        NumWoundsMax   ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
+        SlainModels    ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wholly slain models") ptype results
+        SlainModelsInt ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "slain models")        ptype results
         ProbKill             ->
-            case analysisBarPlot "kill probability (%)" results of
+            case analysisBarPlot "Kill probability (%)" results of
               (Dict, layout) -> renderLayouts [layout]
         ProbKillOne          ->
-            case analysisBarPlot "kill probability (%)" results of
+            case analysisBarPlot "Kill probability (%)" results of
               (Dict, layout) -> renderLayouts [layout]
         AverageWounds        ->
-            case analysisBarPlot "average wounds" results of
+            case analysisBarPlot "Average wounds" results of
               (Dict, layout) -> renderLayouts [layout]
+        WoundingSummary      -> error "WoundingSummary is not supported with the Chart-diagrams backend"
+  where
+    xlabel DensityPlot         base = base
+    xlabel DistributionPlot    base = "maximum " ++ base
+    xlabel RevDistributionPlot base = "minimum " ++ base
+
 
 
 analyze :: AnalysisConfig -> IO (AnalysisResults, Diagram SVG)
@@ -206,7 +216,7 @@ analyze (AnalysisConfig order fn turns tgts) =
         return (rs, plot)
 
 analyzeAll :: [AnalysisConfig] -> IO ([AnalysisResults], Diagram SVG)
-analyzeAll = fmap ((id *** combinePlotsVert) . unzip) . mapM analyze
+analyzeAll = fmap (second combinePlotsVert . unzip) . mapM analyze
 
 diagramToFile :: FilePath -> Diagram SVG -> IO ()
 diagramToFile path = renderSVG path absolute
