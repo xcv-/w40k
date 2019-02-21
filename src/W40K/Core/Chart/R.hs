@@ -4,6 +4,7 @@
 {-# language FlexibleContexts #-}
 {-# language QuasiQuotes #-}
 {-# language TypeApplications #-}
+{-# language ViewPatterns #-}
 module W40K.Core.Chart.R
   ( analysisToFile
   , withEmbeddedR
@@ -11,7 +12,9 @@ module W40K.Core.Chart.R
 
 import GHC.Exts (IsList(..))
 import Control.Monad (forM)
+import Control.Lens (over, _head)
 
+import Data.Char (toUpper)
 import Data.Int (Int32)
 import Data.Functor (void)
 import Data.Singletons (SingI(..))
@@ -28,6 +31,7 @@ import W40K.Core.Chart
 import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone,
                        events, distribution, revDistribution,
                        mean, stDev)
+import W40K.Core.Util (capitalize)
 
 
 -- R helpers
@@ -54,7 +58,7 @@ tidyResultsTable results toDataFrame = do
     dfss <-
       forM (enumerate results) $ \(i, (plotTitle, plotData)) ->
         forM (enumerate plotData) $ \(j, (legendEntry, r)) ->
-          toDataFrame i plotTitle j legendEntry r
+          toDataFrame i (capitalize plotTitle) j legendEntry r
 
     dfs_r <- toRList (concat dfss)
     [r| bind_rows(dfs_r_hs) |]
@@ -151,18 +155,18 @@ data GGPlot s = GGPlot { plotObj :: SomeSEXP s, plotWidth :: Int, plotHeight :: 
 
 
 analysisBarPlot :: String -> AnalysisResultsTable QQ -> R s (GGPlot s)
-analysisBarPlot ylabel results = do
+analysisBarPlot (capitalize -> ylabel) results = do
     df <- tidyNumericTable results
 
     obj <- [r|
-      facet_names = str_to_sentence(df_hs$title)
+      facet_names = df_hs$title
       names(facet_names) = df_hs$title_idx
 
       df_hs %>%
-        ggplot(aes(x=legend_idx, y=value, fill=legend)) +
+        ggplot(aes(x=legend, y=value, fill=legend)) +
           geom_col(position=position_dodge()) +
           labs(
-            y = str_to_sentence(ylabel_hs)) +
+            y = ylabel_hs) +
           theme(
             text = element_text(size=6),
             axis.text.x = element_blank(),
@@ -185,19 +189,19 @@ analysisProbBarPlot ylabel = analysisBarPlot ylabel . mapResultsTable (*100)
 
 
 analysisSummaryErrBarPlot :: String -> AnalysisResultsTable (Prob QQ) -> R s (GGPlot s)
-analysisSummaryErrBarPlot ylabel results = do
+analysisSummaryErrBarPlot (capitalize -> ylabel) results = do
     df <- tidySummaryTable results
 
     obj <- [r|
-      facet_names = str_to_sentence(df_hs$title)
+      facet_names = df_hs$title
       names(facet_names) = df_hs$title_idx
 
       df_hs %>%
-        ggplot(aes(x=legend_idx, y=mean, ymin=mean-std, ymax=mean+std, fill=legend)) +
-          geom_col(position=position_dodge()) +
-          geom_errorbar(position=position_dodge(), width=0.5) +
+        ggplot(aes(x=legend, y=mean, ymin=mean-std, ymax=mean+std, fill=legend)) +
+          geom_col(position=position_dodge(), width=0.8) +
+          geom_errorbar(position=position_dodge(), width=0.5, size=0.2) +
           labs(
-            y = str_to_sentence(ylabel_hs)) +
+            y = ylabel_hs) +
           theme(
             text = element_text(size=6),
             axis.text.x = element_blank(),
@@ -216,19 +220,19 @@ analysisSummaryErrBarPlot ylabel results = do
 
 
 probAnalysisChart :: (Ord a, R.Literal [a] ty) => String -> ProbPlotType -> AnalysisResultsTable (Prob a) -> R s (GGPlot s)
-probAnalysisChart xlabel ptype results = do
+probAnalysisChart (capitalize -> xlabel) ptype results = do
     df <- tidyProbResultsTable ptype results
 
     obj <- [r|
-      facet_names = str_to_sentence(df_hs$title)
+      facet_names = df_hs$title
       names(facet_names) = df_hs$title_idx
 
       df_hs %>%
         ggplot(aes(x=event, y=prob, group=legend_idx, color=legend)) +
-          geom_line() +
-          geom_point(size=0.6) +
+          geom_line(size=0.4) +
+          geom_point(size=0.3) +
           labs(
-            x = str_to_sentence(xlabel_hs),
+            x = xlabel_hs,
             y = 'Probability (%)') +
           theme(
             text = element_text(size=6),

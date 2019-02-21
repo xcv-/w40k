@@ -16,13 +16,11 @@ module W40K.Core.Chart.Chart
   , mainWithAnalysis
   ) where
 
-import Data.Char (toUpper)
 import Data.Coerce (coerce)
 import Data.Constraint (Dict(..))
 import Data.Reflection (Given(..), give)
 
 import Control.Arrow (second)
-import Control.Lens
 import Control.Monad (forM_, (<=<))
 import Control.Monad.State (evalState, evalStateT, execStateT)
 import Control.DeepSeq (NFData, force)
@@ -37,6 +35,7 @@ import qualified Graphics.Rendering.Chart.Backend.Diagrams as ChartD
 
 import W40K.Core.Chart
 import W40K.Core.Prob (Event(..), Prob, QQ, events, distribution, revDistribution)
+import W40K.Core.Util (capitalize)
 
 
 moreColors :: [AlphaColour Double]
@@ -109,7 +108,7 @@ probAnalysisChart xlabel plotType =
     buildLayout :: Chart.PlotValue a => String -> [Chart.PlotLines a Chart.Percent] -> Chart.Layout a Chart.Percent
     buildLayout title linePlots = def
         & Chart.layout_title .~ title
-        & Chart.layout_x_axis . Chart.laxis_title .~ over _head toUpper xlabel
+        & Chart.layout_x_axis . Chart.laxis_title .~ capitalize xlabel
         & Chart.layout_y_axis . Chart.laxis_title .~ "Probability (%)"
         & Chart.layout_plots .~ map Chart.toPlot (zipWith setColor moreColors linePlots)
       where
@@ -159,7 +158,7 @@ analysisBarPlot ylabel results =
                                   | any (/= sampleGroupTitles) otherTitles -> error ("mismatching group titles: " ++ show barTitles)
                                   | otherwise                              -> [Chart.plotBars barPlot]
 
-    in give titles (Dict, def & Chart.layout_y_axis . Chart.laxis_title .~ over _head toUpper ylabel
+    in give titles (Dict, def & Chart.layout_y_axis . Chart.laxis_title .~ capitalize ylabel
                               & Chart.layout_plots .~ layoutPlots)
 
 

@@ -7,11 +7,14 @@ module W40K.Core.Util
   , parMap
   , (:*:)(..)
   , groupWith
+  , capitalize
   ) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Lens (over, _head)
 import Control.Parallel.Strategies (withStrategy, rpar, parList)
 
+import Data.Char (toUpper)
 import Data.List (groupBy)
 
 
@@ -43,3 +46,7 @@ groupWith eqrel fold = map combine . groupBy eqrel
     combine :: [a] -> b
     combine []     = error "groupWith: groupBy should not return empty groups"
     combine (a:as) = fold a as
+
+
+capitalize :: String -> String
+capitalize = over _head toUpper
