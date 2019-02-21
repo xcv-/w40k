@@ -14,14 +14,14 @@ import W40K.Data.Common
 
 -- MODIFIERS
 
-diabolicStrength :: Modifier
-diabolicStrength = em_model %~ (model_str +~ 2) . (model_att +~ 1)
+diabolicStrength :: Model -> Model
+diabolicStrength = (model_str +~ 2) . (model_att +~ 1)
 
-prescience :: Modifier
-prescience = em_model.model_mods.mod_tohit +~ 1
+prescience :: Model -> Model
+prescience = model_mods.mod_tohit +~ 1
 
-weaverOfFates :: Modifier
-weaverOfFates = em_model.model_inv %~ \inv -> max (inv-1) 3
+weaverOfFates :: Model -> Model
+weaverOfFates = (model_inv %~ \inv -> max (inv-1) 3) . (model_name <>~ " (weaver)")
 
 deathToTheFalseEmperor :: Modifier
 deathToTheFalseEmperor = em_ccw.as_weapon.w_hooks.hook_hit %~ addHook (MinModifiedRoll 6) (HitHookExtraAttacks 1)

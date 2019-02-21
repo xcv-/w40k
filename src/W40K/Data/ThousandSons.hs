@@ -16,9 +16,9 @@ otherworldlyPresence :: Model -> Model
 otherworldlyPresence = (model_inv -~ 1) . (model_name <>~ " (otherworldly presence)")
 
 glamourOfTzeentch :: Model -> Model
-glamourOfTzeentch = (model_mods.mod_tobehit -~ 1) . (model_name <>~ " (-1 to hit)")
+glamourOfTzeentch = (model_mods.mod_tobehit -~ 1) . (model_name <>~ " (glamour)")
 
-weaverOfFates :: Modifier
+weaverOfFates :: Model -> Model
 weaverOfFates = Chaos.weaverOfFates
 
 gazeOfMagnus :: PsychicPower
@@ -150,9 +150,9 @@ magnus = basicEquippedModel magnusModel
 buffedMagnus :: EquippedModel
 buffedMagnus = magnus
   & em_model %~ glamourOfTzeentch
-  & weaverOfFates
-  & Chaos.prescience
-  & Chaos.diabolicStrength
+  & em_model %~ weaverOfFates
+  & em_model %~ Chaos.prescience
+  & em_model %~ Chaos.diabolicStrength
   & em_name  .~ "magnus the red (buffed)"
 
 

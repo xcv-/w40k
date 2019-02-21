@@ -18,7 +18,7 @@ disgusting :: Model -> Model
 disgusting = model_fnp .~ 5
 
 miasmaOfPestilence :: Model -> Model
-miasmaOfPestilence = model_mods.mod_tobehit -~ 1
+miasmaOfPestilence = (model_mods.mod_tobehit -~ 1) . (model_name <>~ " (miasma)")
 
 bladesOfPutrefaction :: EquippedModel -> EquippedModel
 bladesOfPutrefaction =
@@ -26,7 +26,7 @@ bladesOfPutrefaction =
     . (em_ccw.as_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 7) (WoundHookMortalWounds (return 1)))
 
 putrescentVitality :: Model -> Model
-putrescentVitality = (model_str +~ 1) . (model_tgh +~ 1)
+putrescentVitality = (model_str +~ 1) . (model_tgh +~ 1) . (model_name <>~ " (putrescent vit.)")
 
 
 -- MODELS
