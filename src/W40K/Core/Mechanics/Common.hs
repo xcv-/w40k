@@ -144,15 +144,20 @@ data WoundHookEff
 
 type WoundHook = RollHook WoundHookEff
 
+
+data DmgHook
+    = DmgHookMortalWounds !(Prob Int)
+  deriving (Eq, Ord, Show)
+
 data RollHooks = RollHooks
   { _hook_hit   :: ![HitHook]
   , _hook_wound :: ![WoundHook]
-  , _hook_dmg   :: ()
+  , _hook_dmg   :: !(Maybe DmgHook)
   }
   deriving (Eq, Ord, Show)
 
 noHooks :: RollHooks
-noHooks = RollHooks [] [] ()
+noHooks = RollHooks [] [] Nothing
 
 addHook :: RequiredRoll -> eff -> [RollHook eff] -> [RollHook eff]
 addHook reqRoll eff = (RollHook reqRoll eff:)
@@ -301,8 +306,8 @@ d6rr1 = do
     r <- d6
     if r == 1 then d6 else return r
 
-prob_d6_gt :: Int -> QQ
-prob_d6_gt k
+prob_d6_geq :: Int -> QQ
+prob_d6_geq k
   | k > 6     = 0
   | k < 2     = 1
   | otherwise = (7 - fromIntegral k) / 6
@@ -365,11 +370,11 @@ chargeRoll rr minRoll = do
   else
     case rr of
       NoChargeReroll      -> return False
-      RerollChargeOneDie  -> bernoulli (prob_d6_gt (minRoll-b))
+      RerollChargeOneDie  -> bernoulli (prob_d6_geq (minRoll-b))
       RerollChargeAllDice -> bernoulli baseProbPass
       RerollChargeAnyDice
-        | baseProbPass >= prob_d6_gt (minRoll-b) -> bernoulli baseProbPass
-        | otherwise                              -> bernoulli (prob_d6_gt (minRoll-b))
+        | baseProbPass >= prob_d6_geq (minRoll-b) -> bernoulli baseProbPass
+        | otherwise                               -> bernoulli (prob_d6_geq (minRoll-b))
   where
     baseProbPass = probTrue $ chargeRoll NoChargeReroll minRoll
 

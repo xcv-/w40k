@@ -62,6 +62,17 @@ twoHighest a b c
   | b <= a && b <= c = (a, c)
   | otherwise        = (a, b)
 
+successiveRollMortalWounds :: Int -> Prob Int
+successiveRollMortalWounds start
+  | start > 6 = return 0
+  | otherwise = do
+      success <- bernoulli (prob_d6_geq start)
+
+      if success then
+        fmapProbMonotone succ (successiveRollMortalWounds (start+1))
+      else
+        return 0
+
 weaponNames :: [RngWeapon] -> String
 weaponNames rw = intercalate "+" (rw^..traverse.rw_name)
 

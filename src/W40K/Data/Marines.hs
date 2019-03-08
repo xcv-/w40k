@@ -38,6 +38,15 @@ scout = meq
   & model_save .~ 4
   & model_name .~ "scout"
 
+captain :: Model
+captain = meq
+  & model_ws   .~ 2
+  & model_bs   .~ 2
+  & model_wnd  .~ 5
+  & model_att  .~ 4
+  & model_ld   .~ 9
+  & model_name .~ "captain"
+
 scoutSargeant :: Model
 scoutSargeant = scout
   & model_att  .~ 2

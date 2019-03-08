@@ -10,6 +10,7 @@ import W40K.Data.Common
 
 import Control.Lens
 
+
 vindicareModel :: Model
 vindicareModel = meq
   & model_ws   .~ 2
@@ -23,10 +24,11 @@ vindicareModel = meq
 
 exitusRifleD3 :: Weapon
 exitusRifleD3 = basicWeapon "exitus rifle (d3 damage)"
-  & w_ap       .~ -3
-  & w_dmg      .~ d3
-  & w_noinv    .~ True
-  & w_wounding .~ FixedWoundingAgainst [Infantry] 2
+  & w_ap             .~ -3
+  & w_dmg            .~ d3
+  & w_noinv          .~ True
+  & w_wounding       .~ FixedWoundingAgainst [Infantry] 2
+  & w_hooks.hook_dmg .~ Just (DmgHookMortalWounds (successiveRollMortalWounds 2))
 
 exitusRifleD6 :: Weapon
 exitusRifleD6 = exitusRifleD3

@@ -32,9 +32,34 @@ import qualified W40K.Data.Tyranids        as Tyranids
 
 main :: IO ()
 main = R.withEmbeddedR $ do
+    assassinTests
     chaosPrimarchTests
     plagueMarineTests
     arcWeaponryTests
+
+
+assassinTests :: IO ()
+assassinTests = do
+    R.analysisToFile "/tmp/assassins.png"
+      [ AnalysisConfig ByTarget ProbKillOne                        assassins characters
+      , AnalysisConfig ByTarget WoundingSummary                    assassins characters
+      , AnalysisConfig ByTarget (NumWoundsMax RevDistributionPlot) assassins characters
+      ]
+
+    return ()
+  where
+    characters =
+      [ Marines.captain
+      , GK.grandMasterModel
+      ]
+
+    assassins =
+      [
+        eraseTurn emptyTurn {
+          turnName = "vindicare",
+          turnShooting = \_ -> [Assassins.vindicare]
+        }
+      ]
 
 
 chaosPrimarchTests :: IO ()
