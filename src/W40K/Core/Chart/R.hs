@@ -185,7 +185,11 @@ analysisBarPlot (capitalize -> ylabel) results = do
 
 
 analysisProbBarPlot :: String -> AnalysisResultsTable QQ -> R s (GGPlot s)
-analysisProbBarPlot ylabel = analysisBarPlot ylabel . mapResultsTable (*100)
+analysisProbBarPlot ylabel tbl = do
+    GGPlot p w h <- analysisBarPlot ylabel (mapResultsTable (*100) tbl)
+
+    p' <- [r| p_hs + expand_limits(y = c(0, 100)) |]
+    return (GGPlot p' w h)
 
 
 analysisSummaryErrBarPlot :: String -> AnalysisResultsTable (Prob QQ) -> R s (GGPlot s)
@@ -234,6 +238,7 @@ probAnalysisChart (capitalize -> xlabel) ptype results = do
           labs(
             x = xlabel_hs,
             y = 'Probability (%)') +
+          expand_limits(y = c(0, 100)) +
           theme(
             text = element_text(size=6),
             legend.title = element_blank(),
