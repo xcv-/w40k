@@ -28,7 +28,7 @@ exitusRifleD3 = basicWeapon "exitus rifle (d3 damage)"
   & w_dmg            .~ d3
   & w_noinv          .~ True
   & w_wounding       .~ FixedWoundingAgainst [Infantry] 2
-  & w_hooks.hook_dmg .~ Just (DmgHookMortalWounds (successiveRollMortalWounds 2))
+  & w_hooks.hook_dmg .~ Just (DmgHookMortalWounds (successiveRollMortalWounds 3))
 
 exitusRifleD6 :: Weapon
 exitusRifleD6 = exitusRifleD3
