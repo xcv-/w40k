@@ -519,9 +519,9 @@ eradicationOnager short = basicEquippedModel onagerModel
   & em_rw   .~ [if short then eradicationBeamerShort else eradicationBeamerLong]
   & em_name .~ "onager dunecrawler (eradication, d-t)"
 
-icarusOnager :: EquippedModel
-icarusOnager = basicEquippedModel onagerModel
-  & em_rw   .~ [neutronLaser]
+icarusOnager :: Bool -> EquippedModel
+icarusOnager fly = basicEquippedModel onagerModel
+  & em_rw   .~ icarusArray fly
   & em_name .~ "onager dunecrawler (icarus array, d-t)"
 
 neutronOnager :: EquippedModel

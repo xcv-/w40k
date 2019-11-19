@@ -16,7 +16,7 @@ module W40K.Core.Mechanics
   , WoundedModels(..)
   , woundModels
   , fracWoundedModels
-  , EquippedModel (..)
+  , EquippedModel(..)
   , em_model, em_ccw, em_rw, em_name
   , basicEquippedModel
   , attackSplit
@@ -33,9 +33,13 @@ module W40K.Core.Mechanics
   , probKill
 
   , Turn(..)
+  , emptyTurn
+  , renaming
+  , shootingPhase
+  , fightPhase
   , GenericTurn(..)
   , eraseTurn
-  , emptyTurn
+  , mapGenericTurn
   , turnNumWounds
   , turnNumWoundsMax
   , turnNumSlainModels
@@ -474,8 +478,14 @@ data Turn pr cr = Turn
   , turnMelee    :: pr -> cr -> [EquippedModel]
   }
 
-eraseTurn :: (Ord pr, Ord cr) => Turn pr cr -> GenericTurn
-eraseTurn = GenericTurn
+renaming :: Setter' (Turn pr cr) String
+renaming = sets $ \f t -> t { turnName = f (turnName t) }
+
+shootingPhase :: Setter' (Turn pr cr) [EquippedModel]
+shootingPhase = sets $ \f t -> t { turnShooting = \pr -> f (turnShooting t pr ) }
+
+fightPhase :: Setter' (Turn pr cr) [EquippedModel]
+fightPhase = sets $ \f t -> t { turnMelee = \pr cr -> f (turnMelee t pr cr) }
 
 emptyTurn :: Turn () ()
 emptyTurn = Turn "" (\_ -> return (mempty, ())) (\_ -> []) (\_ -> return ()) (\_ _ -> [])
@@ -483,10 +493,11 @@ emptyTurn = Turn "" (\_ -> return (mempty, ())) (\_ -> []) (\_ -> return ()) (\_
 interleaveTurns :: (Ord pr1, Ord cr1, Ord pr2, Ord cr2) => Turn pr1 cr1 -> Turn pr2 cr2 -> Turn (pr1, pr2) (cr1, cr2)
 interleaveTurns turn1 turn2 =
     Turn {
-      turnName = case (turnName turn1, turnName turn2) of
-               (n1, "")  -> n1
-               ("", n2) -> n2
-               (n1, n2) -> n1 ++ " + " ++ n2,
+      turnName =
+        case (turnName turn1, turnName turn2) of
+          (n1, "") -> n1
+          ("", n2) -> n2
+          (n1, n2) -> n1 ++ " + " ++ n2,
 
       turnPsychic = \tgt -> liftA2 (\(mw1, pr1) (mw2, pr2) -> (mw1 <> mw2, (pr1, pr2)))
                                    (turnPsychic turn1 tgt)
@@ -499,6 +510,12 @@ interleaveTurns turn1 turn2 =
     }
 
 data GenericTurn = forall pr cr. (Ord pr, Ord cr) => GenericTurn (Turn pr cr)
+
+eraseTurn :: (Ord pr, Ord cr) => Turn pr cr -> GenericTurn
+eraseTurn = GenericTurn
+
+mapGenericTurn :: (forall pr cr. (Ord pr, Ord cr) => Turn pr cr -> Turn pr cr) -> GenericTurn -> GenericTurn
+mapGenericTurn f (GenericTurn t) = GenericTurn (f t)
 
 instance Semigroup GenericTurn where
   GenericTurn turn1 <> GenericTurn turn2 = eraseTurn $ interleaveTurns turn1 turn2

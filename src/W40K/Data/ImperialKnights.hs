@@ -22,7 +22,7 @@ ionBulwark :: Model -> Model
 ionBulwark = (model_rng_inv %~ min 4) . (model_name <>~ " (bulwark)")
 
 rotateIonShields :: Model -> Model
-rotateIonShields = (model_inv %~ max 3 . subtract 1) . (model_name <>~ " (RIO)")
+rotateIonShields = (model_inv %~ max 4 . subtract 1) . (model_name <>~ " (RIO)")
 
 firstKnight :: Model -> Model
 firstKnight = model_mods.mod_rrtohit <>~ RerollOnes
