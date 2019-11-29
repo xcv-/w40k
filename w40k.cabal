@@ -38,10 +38,13 @@ library
                        W40K.Data.AdMech,
                        W40K.Data.Assassins,
                        W40K.Data.Chaos,
+                       W40K.Data.Custodes,
                        W40K.Data.Common,
+                       W40K.Data.Daemons,
                        W40K.Data.DeathGuard,
                        W40K.Data.Eldar,
                        W40K.Data.GreyKnights,
+                       W40K.Data.ImperialGuard,
                        W40K.Data.ImperialKnights,
                        W40K.Data.Inquisition,
                        W40K.Data.Marines,
@@ -71,9 +74,7 @@ executable w40k
   main-is:             Main.hs
   -- other-modules:       GreyKnightTests
   ghc-options:         -O3 -threaded -rtsopts -with-rtsopts=-N
-  build-depends:       base
-                     , w40k
-                     , lens
+  build-depends:       base, directory, filepath, lens, w40k
   default-language:    Haskell2010
 
 -- test-suite w40k-test

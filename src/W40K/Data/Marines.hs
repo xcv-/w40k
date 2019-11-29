@@ -30,6 +30,11 @@ strafingRun = model_mods.mod_tohit +~ 1
 interceptorJet :: Model -> Model
 interceptorJet = model_mods.mod_tohit +~ 1
 
+fleshIsWeak :: Model -> Model
+fleshIsWeak m = m
+  & model_fnp  %~  min 6
+  & model_name <>~ " (IH)"
+
 
 -- MODELS
 
@@ -109,6 +114,14 @@ redemptorDreadnought = dreadnought
   & model_str  .~  6
   & model_tgh  .~  7
   & model_name .~ "redemptor dreadnought"
+
+leviathanDreadnought :: Model
+leviathanDreadnought = venDreadnought
+  & model_tgh  .~ 8
+  & model_wnd  .~ 14
+  & model_inv  .~ 4
+  & model_fnp  .~ 7
+  & model_name .~ "leviathan dreadnought"
 
 razorback :: Model
 razorback = rhino

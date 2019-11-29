@@ -22,8 +22,10 @@ primeHermeticonAura = noAura & aura_cc.mod_rrtohit .~ RerollFailed
 cawlAura :: Aura
 cawlAura = noAura & aura_rng.mod_rrtohit .~ RerollAll
 
-nearOnager :: Modifier
-nearOnager = em_model.model_mods.mod_rrinv .~ RerollOnes
+daedalosusTarget :: Modifier
+daedalosusTarget = em_model %~ \m -> m
+  & model_rng_mods.mod_tohit +~ 1
+  & model_name <>~ " (DrD)"
 
 
 -- CANTICLES

@@ -11,6 +11,7 @@ import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Core.Psychic
 
+
 -- TOOLS AND MODIFIERS
 
 rapidFiring :: Modifier
@@ -131,6 +132,12 @@ deepstriking rr (GenericTurn turn) =
 
 nosave :: Int
 nosave = 9999
+
+stormShield :: Model -> Model
+stormShield m = m
+  & model_inv  .~ 3
+  & model_name <>~ " (shield)"
+
 
 meq :: Model
 meq = Model
