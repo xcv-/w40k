@@ -13,10 +13,10 @@ import qualified W40K.Data.Chaos as Chaos
 
 
 otherworldlyPresence :: Model -> Model
-otherworldlyPresence = (model_inv -~ 1) . (model_name <>~ " (otherworldly presence)")
+otherworldlyPresence = stack [model_inv -~ 1, model_name <>~ " (OwP)"]
 
 glamourOfTzeentch :: Model -> Model
-glamourOfTzeentch = (model_mods.mod_tobehit -~ 1) . (model_name <>~ " (glamour)")
+glamourOfTzeentch = stack [model_mods.mod_tobehit -~ 1, model_name <>~ " (GoT)"]
 
 weaverOfFates :: Model -> Model
 weaverOfFates = Chaos.weaverOfFates
@@ -59,8 +59,17 @@ tzaangorModel = meq
 rubricModel :: Model
 rubricModel = meq
   & model_inv         .~ 5
+  & model_allIsDust   .~ True
   & model_ignoreHeavy .~ True
   & model_name        .~ "rubric marine"
+
+scarabOccultModel :: Model
+scarabOccultModel = rubricModel
+  & model_att         +~ 1
+  & model_ld          +~ 1
+  & model_wnd         +~ 1
+  & model_name        .~ "scarab occult"
+
 
 magnusModel :: Model
 magnusModel = daemonPrinceModel
@@ -124,7 +133,7 @@ tzaangor = basicEquippedModel tzaangorModel
 
 twistbray :: EquippedModel
 twistbray = tzaangor
-  & em_model %~ (model_att +~ 1) . (model_ld +~ 1)
+  & em_model %~ stack [model_att +~ 1, model_ld +~ 1]
   & em_name  .~ "twistbray"
 
 bolterRubric :: EquippedModel
@@ -137,7 +146,7 @@ soulreaperRubric = basicEquippedModel rubricModel
 
 aspiringSorcerer :: EquippedModel
 aspiringSorcerer = bolterRubric
-  & em_model %~ (model_att +~ 1) . (model_ld +~ 1) . (model_allIsDust .~ False)
+  & em_model %~ stack [model_att +~ 1, model_ld +~ 1, model_allIsDust .~ False]
   & em_ccw   .~ forceStave
   & em_rw    .~ [infernoBoltPistol]
   & em_name  .~ "aspiring sorcerer"

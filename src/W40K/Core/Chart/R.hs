@@ -45,6 +45,9 @@ preamble = void [r|
 toInt32 :: Int -> Int32
 toInt32 = fromIntegral
 
+toDouble :: Int -> Double
+toDouble = fromIntegral
+
 toRList :: [SomeSEXP s] -> R s (SomeSEXP s)
 toRList xs = fmap R.SomeSEXP $ HExp.unhexp $ HExp.Vector (toInt32 $ length xs) (fromList xs)
 
@@ -260,15 +263,16 @@ plotResults (AnalysisResults fn results) =
     case fn of
       NumWounds      ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
       NumWoundsMax   ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
+      WoundingSummary      -> analysisSummaryErrBarPlot "Average wounds ± std"             (floatResults results)
+
       SlainModelsInt ptype -> probAnalysisChart (xlabel ptype "wholly slain models") ptype (int32results results)
       SlainModels    ptype -> probAnalysisChart (xlabel ptype "slain models")        ptype results
+      SlainSummary         -> analysisSummaryErrBarPlot "Average killed ± std"             results
 
       ProbKill             -> analysisProbBarPlot "Kill probability (%)" results
       ProbKillOne          -> analysisProbBarPlot "Kill probability (%)" results
-      AverageWounds        -> analysisBarPlot     "Average wounds"       results
-
-      WoundingSummary      -> analysisSummaryErrBarPlot "Average wounds ± std" results
   where
+    floatResults = mapResultsTable (fmapProbMonotone toDouble)
     int32results = mapResultsTable (fmapProbMonotone toInt32)
 
     xlabel DensityPlot         base = base
@@ -287,8 +291,8 @@ analyze (AnalysisConfig order fn turns tgts) =
         return (rs, plot)
 
 
-combinePlotsVert :: [GGPlot s] -> R s (GGPlot s)
-combinePlotsVert plots = do
+combinePlotsVert :: String -> [GGPlot s] -> R s (GGPlot s)
+combinePlotsVert name plots = do
     let widths = map plotWidth plots
     let width = if null widths then 0 else maximum widths
 
@@ -298,7 +302,7 @@ combinePlotsVert plots = do
 
     objs <- toRList (map plotObj plots)
 
-    obj <- [r| arrangeGrob(grobs=objs_hs, ncol=1, heights=heights32_hs) |]
+    obj <- [r| arrangeGrob(grobs=objs_hs, ncol=1, heights=heights32_hs, top=name_hs) |]
 
     return GGPlot { plotObj=obj, plotWidth=width, plotHeight=height }
 
@@ -311,18 +315,25 @@ savePlot path GGPlot { plotObj=obj, plotWidth=w, plotHeight=h } =
         void [r| ggsave(filename=path_hs, plot=obj_hs, width=w32_hs, height=h32_hs, unit='cm') |]
 
 
-analyzeAll :: [AnalysisConfig] -> R s ([AnalysisResults], GGPlot s)
-analyzeAll cfgs = do
+analyzeGroup :: AnalysisConfigGroup -> R s ([AnalysisResults], GGPlot s)
+analyzeGroup (AnalysisConfigGroup name cfgs) = do
     (rs, plots) <- fmap unzip (mapM analyze cfgs)
-    plot <- combinePlotsVert plots
+    plot <- combinePlotsVert name plots
     return (rs, plot)
 
 
-analysisToFile :: FilePath -> [AnalysisConfig] -> IO [AnalysisResults]
-analysisToFile path cfgs =
+analyzeAll :: String -> [AnalysisConfigGroup] -> R s ([AnalysisResults], GGPlot s)
+analyzeAll name groups = do
+    (rs, plots) <- fmap unzip (mapM analyzeGroup groups)
+    plot <- combinePlotsVert name plots
+    return (concat rs, plot)
+
+
+analysisToFile :: String -> FilePath -> [AnalysisConfigGroup] -> IO [AnalysisResults]
+analysisToFile path name groups =
     R.runRegion $ do
       preamble
-      (rs, plt) <- analyzeAll cfgs
+      (rs, plt) <- analyzeAll name groups
       savePlot path plt
       return rs
 

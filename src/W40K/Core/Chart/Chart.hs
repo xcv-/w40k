@@ -184,18 +184,18 @@ plotResults (AnalysisResults fn results) =
       case fn of
         NumWounds      ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
         NumWoundsMax   ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
+        WoundingSummary      -> error "WoundingSummary is not supported with the Chart-diagrams backend"
+
         SlainModels    ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wholly slain models") ptype results
         SlainModelsInt ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "slain models")        ptype results
+        SlainSummary         -> error "SlainSummary is not supported with the Chart-diagrams backend"
+
         ProbKill             ->
             case analysisBarPlot "Kill probability (%)" results of
               (Dict, layout) -> renderLayouts [layout]
         ProbKillOne          ->
             case analysisBarPlot "Kill probability (%)" results of
               (Dict, layout) -> renderLayouts [layout]
-        AverageWounds        ->
-            case analysisBarPlot "Average wounds" results of
-              (Dict, layout) -> renderLayouts [layout]
-        WoundingSummary      -> error "WoundingSummary is not supported with the Chart-diagrams backend"
   where
     xlabel DensityPlot         base = base
     xlabel DistributionPlot    base = "maximum " ++ base

@@ -3,7 +3,7 @@ module W40K.Data.Common where
 
 import Prelude hiding (Functor(..), Monad(..), sequence)
 import Data.Bool (bool)
-import Data.List (intercalate)
+import Data.List (foldl', intercalate)
 import Control.Lens
 
 import W40K.Core.ConstrMonad
@@ -54,14 +54,17 @@ twin = (rw_shots %~ twice) . (rw_name %~ ("twin " ++))
 quad :: RngWeapon -> RngWeapon
 quad = (rw_shots %~ sumIID 4) . (rw_name %~ ("quad " ++))
 
-two :: [a] -> [a]
-two a = a ++ a
+two :: Semigroup s => s -> s
+two s = s <> s
 
 twoHighest :: Ord a => a -> a -> a -> (a, a)
 twoHighest a b c
   | a <= b && a <= c = (b, c)
   | b <= a && b <= c = (a, c)
   | otherwise        = (a, b)
+
+stack :: [a -> a] -> a -> a
+stack = foldl' (.) id
 
 successiveRollMortalWounds :: Int -> Prob Int
 successiveRollMortalWounds start
@@ -83,48 +86,48 @@ weaponNames rw = intercalate "+" (rw^..traverse.rw_name)
 psychicMod :: Psyker -> PsychicPower -> (Model -> Maybe Psyker) -> GenericTurn -> GenericTurn
 psychicMod caster power denier (GenericTurn turn) =
     eraseTurn turn {
-      turnPsychic = \tgt -> do
+      _turnPsychic = \tgt -> do
         succeed <- doesManifestPower caster power (denier tgt)
-        (mw0, pr) <- turnPsychic turn tgt
+        (mw0, pr) <- _turnPsychic turn tgt
         return (mw0, (pr, succeed)),
 
-      turnShooting = \(pr, succeed) ->
+      _turnShooting = \(pr, succeed) ->
         if succeed then
-          with (power^.power_mod) (turnShooting turn pr)
+          with (power^.power_mod) (_turnShooting turn pr)
         else
-          turnShooting turn pr,
+          _turnShooting turn pr,
 
-      turnCharges = \(pr, _) -> turnCharges turn pr,
+      _turnCharges = \(pr, _) -> _turnCharges turn pr,
 
-      turnMelee = \(pr, succeed) cr ->
+      _turnMelee = \(pr, succeed) cr ->
         if succeed then
-          with (power^.power_mod) (turnMelee turn pr cr)
+          with (power^.power_mod) (_turnMelee turn pr cr)
         else
-          turnMelee turn pr cr
+          _turnMelee turn pr cr
     }
 
 chargeFilter :: Prob Bool -> GenericTurn -> GenericTurn
 chargeFilter pCharge (GenericTurn turn) =
     eraseTurn turn {
-      turnCharges = \pr -> do
-        cr <- turnCharges turn pr
+      _turnCharges = \pr -> do
+        cr <- _turnCharges turn pr
         crFilter <- pCharge
         return (cr, crFilter),
 
-      turnMelee = \pr (cr, crFilter) -> if crFilter then turnMelee turn pr cr else []
+      _turnMelee = \pr (cr, crFilter) -> if crFilter then _turnMelee turn pr cr else []
     }
 
 deepstriking :: ChargeRerolls -> GenericTurn -> GenericTurn
 deepstriking rr (GenericTurn turn) =
     eraseTurn turn {
-      turnCharges = \pr -> do
-        cr <- turnCharges turn pr
+      _turnCharges = \pr -> do
+        cr <- _turnCharges turn pr
         ds_cr <- chargeRoll rr 9
         return (cr, ds_cr),
 
-      turnShooting = \pr -> with moving (turnShooting turn pr),
+      _turnShooting = \pr -> with moving (_turnShooting turn pr),
 
-      turnMelee = \pr (cr, ds_cr) -> if ds_cr then turnMelee turn pr cr else []
+      _turnMelee = \pr (cr, ds_cr) -> if ds_cr then _turnMelee turn pr cr else []
     }
 
 
@@ -141,25 +144,26 @@ stormShield m = m
 
 meq :: Model
 meq = Model
-  { _model_class            = Infantry
-  , _model_ws               = 3
-  , _model_bs               = 3
-  , _model_str              = 4
-  , _model_tgh              = 4
-  , _model_att              = 1
-  , _model_wnd              = 1
-  , _model_ld               = 7
-  , _model_save             = 3
-  , _model_cc_inv           = nosave
-  , _model_rng_inv          = nosave
-  , _model_moved            = False
-  , _model_cc_mods          = noMods
-  , _model_rng_mods         = noMods
-  , _model_quantumShielding = False
-  , _model_allIsDust        = False
-  , _model_ignoreHeavy      = False
-  , _model_fnp              = 7
-  , _model_name             = "MEQ"
+  { _model_class              = Infantry
+  , _model_ws                 = 3
+  , _model_bs                 = 3
+  , _model_str                = 4
+  , _model_tgh                = 4
+  , _model_att                = 1
+  , _model_wnd                = 1
+  , _model_ld                 = 7
+  , _model_save               = 3
+  , _model_cc_inv             = nosave
+  , _model_rng_inv            = nosave
+  , _model_moved              = False
+  , _model_cc_mods            = noMods
+  , _model_rng_mods           = noMods
+  , _model_quantumShielding   = False
+  , _model_allIsDust          = False
+  , _model_ignoreHeavy        = False
+  , _model_unmodifiedMinWound = 1
+  , _model_fnp                = 7
+  , _model_name               = "MEQ"
   }
 
 geq :: Model

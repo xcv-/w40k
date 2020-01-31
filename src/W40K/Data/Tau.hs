@@ -7,6 +7,15 @@ import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Data.Common
 
+
+-- WARGEAR
+
+novaShield :: Model -> Model
+novaShield m = m
+  & model_inv   .~ 3
+  & model_name <>~ " (nova shield)"
+
+
 -- MODELS
 
 commander :: Model
@@ -99,6 +108,7 @@ riptide = broadside
   & model_tgh  .~ 7
   & model_wnd  .~ 14
   & model_save .~ 2
+  & model_inv  .~ 5
   & model_name .~ "riptide"
 
 stormsurge :: Model

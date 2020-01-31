@@ -20,8 +20,27 @@ data CombatType = Melee | Ranged deriving Eq
 
 -- MODIFIERS & REROLLS
 
+data SkillRoll = SkillRoll
+  { unmodifiedRoll :: {-# unpack #-} !Int
+  , rollModifiers  :: {-# unpack #-} !Int
+  }
+  deriving (Eq, Ord, Show)
+
+modifyRoll :: SkillRoll -> Int -> SkillRoll
+modifyRoll (SkillRoll k m) m' = SkillRoll k (m + m')
+
+modifiedRoll :: SkillRoll -> Int
+modifiedRoll (SkillRoll 1 m) = 1
+modifiedRoll (SkillRoll k m) = k+m
+
+
 data IntMod = NoMod | ConstVal !Int | Add !Int | Times !Int | Half | Dot !IntMod !IntMod
   deriving (Eq, Ord, Show)
+
+instance Semigroup IntMod where
+    (<>) = Dot
+instance Monoid IntMod where
+    mempty = NoMod
 
 applyIntMod :: IntMod -> Int -> Int
 applyIntMod NoMod        n = n
@@ -31,10 +50,6 @@ applyIntMod (Times k)    n = n * k
 applyIntMod Half         n = (n+1) `div` 2
 applyIntMod (Dot m1 m2)  n = applyIntMod m1 (applyIntMod m2 n)
 
-instance Semigroup IntMod where
-    (<>) = Dot
-instance Monoid IntMod where
-    mempty = NoMod
 
 data Reroll = NoReroll | RerollOnes | RerollFailed | RerollAll
   deriving (Eq, Ord, Show)
@@ -46,23 +61,24 @@ instance Monoid Reroll where
 
 
 data RollMods = RollMods
-  { _mod_tohit     :: !Int
-  , _mod_rrtohit   :: !Reroll
-  , _mod_towound   :: !Int
-  , _mod_rrtowound :: !Reroll
-  , _mod_toarmor   :: !Int
-  , _mod_rrarmor   :: !Reroll
-  , _mod_toinv     :: !Int
-  , _mod_rrinv     :: !Reroll
-  , _mod_tobehit   :: !Int
-  , _mod_recvdmg   :: !IntMod
+  { _mod_tohit       :: !Int
+  , _mod_rrtohit     :: !Reroll
+  , _mod_towound     :: !Int
+  , _mod_rrtowound   :: !Reroll
+  , _mod_toarmor     :: !Int
+  , _mod_rrarmor     :: !Reroll
+  , _mod_toinv       :: !Int
+  , _mod_rrinv       :: !Reroll
+  , _mod_tobehit     :: !Int
+  , _mod_tobewounded :: !Int
+  , _mod_recvdmg     :: !IntMod
   }
   deriving (Eq, Ord, Show)
 
 makeLenses ''RollMods
 
 noMods :: RollMods
-noMods = RollMods 0 NoReroll 0 NoReroll 0 NoReroll 0 NoReroll 0 NoMod
+noMods = RollMods 0 NoReroll 0 NoReroll 0 NoReroll 0 NoReroll 0 0 NoMod
 
 mod_tosave :: Setter' RollMods Int
 mod_tosave f mods =
@@ -76,20 +92,22 @@ mod_rrtosave f mods =
 
 instance Semigroup RollMods where
     m1 <> m2 = RollMods
-      { _mod_tohit     = _mod_tohit m1     +  _mod_tohit m2
-      , _mod_rrtohit   = _mod_rrtohit m1   <> _mod_rrtohit m2
-      , _mod_towound   = _mod_towound m1   +  _mod_towound m2
-      , _mod_rrtowound = _mod_rrtowound m1 <> _mod_rrtowound m2
-      , _mod_toarmor   = _mod_toarmor m1   +  _mod_toarmor m2
-      , _mod_rrarmor   = _mod_rrarmor m1   <> _mod_rrarmor m2
-      , _mod_toinv     = _mod_toinv m1     +  _mod_toinv m2
-      , _mod_rrinv     = _mod_rrinv m1     <> _mod_rrinv m2
-      , _mod_tobehit   = _mod_tobehit m1   +  _mod_tobehit m2
-      , _mod_recvdmg   = _mod_recvdmg m1   <> _mod_recvdmg m2
+      { _mod_tohit       = _mod_tohit m1       +  _mod_tohit m2
+      , _mod_rrtohit     = _mod_rrtohit m1     <> _mod_rrtohit m2
+      , _mod_towound     = _mod_towound m1     +  _mod_towound m2
+      , _mod_rrtowound   = _mod_rrtowound m1   <> _mod_rrtowound m2
+      , _mod_toarmor     = _mod_toarmor m1     +  _mod_toarmor m2
+      , _mod_rrarmor     = _mod_rrarmor m1     <> _mod_rrarmor m2
+      , _mod_toinv       = _mod_toinv m1       +  _mod_toinv m2
+      , _mod_rrinv       = _mod_rrinv m1       <> _mod_rrinv m2
+      , _mod_tobehit     = _mod_tobehit m1     +  _mod_tobehit m2
+      , _mod_tobewounded = _mod_tobewounded m1 +  _mod_tobewounded m2
+      , _mod_recvdmg     = _mod_recvdmg m1     <> _mod_recvdmg m2
       }
 
 instance Monoid RollMods where
     mempty = noMods
+
 
 data Aura = Aura
   { _aura_cc  :: !RollMods
@@ -199,23 +217,30 @@ basicWeapon name = Weapon
 
 -- SPECIALIZED WEAPONS
 
-class IsWeapon w where
+class AsWeapon w where
     as_weapon :: Lens' w Weapon
+
+instance AsWeapon Weapon where
+    as_weapon = id
+
+
+class AsWeapon w => IsWeapon w where
     weaponAttacks :: Model -> w -> Prob Int
 
     hitMods :: Model -> w -> Model -> Int
-    hitRoll :: Model -> w -> Model -> Prob Int
-    doesHit :: Model -> w -> Model -> Int -> Bool
+    hitRoll :: Model -> w -> Model -> Prob SkillRoll
+    doesHit :: Model -> w -> Model -> SkillRoll -> Bool
     -- probHit :: Model -> w -> Model -> QQ
 
     woundMods :: Model -> w -> Int
-    woundRoll :: Model -> w -> Model -> Prob Int
-    doesWound :: Model -> w -> Model -> Int -> Bool
+    woundRoll :: Model -> w -> Model -> Prob SkillRoll
+    doesWound :: Model -> w -> Model -> SkillRoll -> Bool
     -- probWound :: Model -> w -> Model -> QQ
 
     probSave :: w -> Model -> QQ
 
     shrinkModels :: [(Model, w)] -> [(Int, Model, w)]
+
 
 probHit :: IsWeapon w => Model -> w -> Model -> QQ
 probHit src w tgt
@@ -232,25 +257,26 @@ probFailSave w tgt = 1 - probSave w tgt
 -- MODELS
 
 data Model = Model
-  { _model_class            :: !ModelClass
-  , _model_ws               :: !Int
-  , _model_bs               :: !Int
-  , _model_str              :: !Int
-  , _model_tgh              :: !Int
-  , _model_att              :: !Int
-  , _model_wnd              :: !Int
-  , _model_ld               :: !Int
-  , _model_save             :: !Int
-  , _model_cc_inv           :: !Int
-  , _model_rng_inv          :: !Int
-  , _model_cc_mods          :: !RollMods
-  , _model_rng_mods         :: !RollMods
-  , _model_moved            :: !Bool
-  , _model_quantumShielding :: !Bool
-  , _model_allIsDust        :: !Bool
-  , _model_ignoreHeavy      :: !Bool
-  , _model_fnp              :: !Int
-  , _model_name             :: !String
+  { _model_class              :: !ModelClass
+  , _model_ws                 :: !Int
+  , _model_bs                 :: !Int
+  , _model_str                :: !Int
+  , _model_tgh                :: !Int
+  , _model_att                :: !Int
+  , _model_wnd                :: !Int
+  , _model_ld                 :: !Int
+  , _model_save               :: !Int
+  , _model_cc_inv             :: !Int
+  , _model_rng_inv            :: !Int
+  , _model_cc_mods            :: !RollMods
+  , _model_rng_mods           :: !RollMods
+  , _model_moved              :: !Bool
+  , _model_quantumShielding   :: !Bool
+  , _model_allIsDust          :: !Bool
+  , _model_unmodifiedMinWound :: !Int
+  , _model_ignoreHeavy        :: !Bool
+  , _model_fnp                :: !Int
+  , _model_name               :: !String
   }
   deriving (Eq, Ord, Show)
 
@@ -277,12 +303,6 @@ model_mods f model =
     f (_model_cc_mods model)
     <*>
     f (_model_rng_mods model)
-
--- model_aura :: Lens' Model Aura
--- model_aura f model =
---     rebuildModel <$> f (Aura (_model_cc_mods model) (_model_rng_mods model))
---   where
---     rebuildModel (Aura cc rng) = model { _model_cc_mods = cc, _model_rng_mods = rng }
 
 model_mods_for :: CombatType -> Lens' Model RollMods
 model_mods_for Melee  = model_cc_mods
@@ -331,31 +351,31 @@ roll rr d noModPass modPass = do
         otherwise                        -> False
 
 
-skillRoll :: Reroll -> Int -> Int -> Prob Int
-skillRoll rr skill mods = do
+skillRoll :: Reroll -> Int -> Int -> Int -> Prob SkillRoll
+skillRoll rr noModSkill skill mods = do
     k <- d6
 
-    let modK = k + mods
-
     if k == 1 then
-      if rerollable k then
-        skillRoll NoReroll skill mods
+      if rr /= NoReroll then
+        skillRoll NoReroll noModSkill skill mods
       else
-        return 1
+        return (SkillRoll 1 mods)
     else
-      if modK >= skill then
-        return modK
+      if k >= noModSkill && k + mods >= skill then
+        return (SkillRoll k mods)
       else if rerollable k then
-        skillRoll NoReroll skill mods
+        skillRoll NoReroll noModSkill skill mods
       else
-        return (max 1 modK)
+        return (SkillRoll k mods)
   where
     rerollable k =
       case rr of
-        RerollOnes   | k == 1    -> True
-        RerollFailed | k < skill -> True
-        RerollAll                -> True
-        otherwise                -> False
+        RerollOnes   | k == 1 -> True
+        RerollFailed
+          | k < noModSkill    -> True
+          | k < skill         -> True
+        RerollAll             -> True
+        otherwise             -> False
 
 
 data ChargeRerolls = NoChargeReroll | RerollChargeOneDie | RerollChargeAllDice | RerollChargeAnyDice

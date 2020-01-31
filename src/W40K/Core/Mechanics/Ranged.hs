@@ -51,8 +51,10 @@ null_rw = RngWeapon
   , _rw_weapon  = basicWeapon "(null)"
   }
 
-instance IsWeapon RngWeapon where
+instance AsWeapon RngWeapon where
     as_weapon = rw_weapon
+
+instance IsWeapon RngWeapon where
     weaponAttacks _ w = w^.rw_shots
 
     hitMods = rngHitMods
@@ -82,13 +84,13 @@ rngHitMods src w tgt =
       | otherwise                                                                = 0
 
 -- autohit not taken into account because there is no hit roll for auto-hitting weapons (FAQ'd)
-rngDoesHit :: Model -> RngWeapon -> Model -> Int -> Bool
+rngDoesHit :: Model -> RngWeapon -> Model -> SkillRoll -> Bool
 rngDoesHit src w _ =
-    (>=! src^.model_bs)
+    (>=! src^.model_bs) . modifiedRoll
 
-rngHitRoll :: Model -> RngWeapon -> Model -> Prob Int
+rngHitRoll :: Model -> RngWeapon -> Model -> Prob SkillRoll
 rngHitRoll src w tgt =
-    skillRoll rerolls (src^.model_bs) (rngHitMods src w tgt)
+    skillRoll rerolls 1 (src^.model_bs) (rngHitMods src w tgt)
   where
     rerolls = src^.model_rng_mods.mod_rrtohit <> w^.rw_mods.mod_rrtohit
 
@@ -96,15 +98,15 @@ rngHitRoll src w tgt =
 rngWoundMods :: Model -> RngWeapon -> Int
 rngWoundMods src w = src^.model_rng_mods.mod_towound + w^.rw_mods.mod_towound
 
-rngDoesWound :: Model -> RngWeapon -> Model -> Int -> Bool
-rngDoesWound _ w tgt =
-    (>=! requiredRoll)
+rngDoesWound :: Model -> RngWeapon -> Model -> SkillRoll -> Bool
+rngDoesWound _ w tgt r =
+    unmodifiedRoll r >=! tgt^.model_unmodifiedMinWound && modifiedRoll r >=! requiredRoll
   where
     requiredRoll = requiredWoundRoll (w^.rw_weapon) (w^.rw_str) tgt
 
-rngWoundRoll :: Model -> RngWeapon -> Model -> Prob Int
+rngWoundRoll :: Model -> RngWeapon -> Model -> Prob SkillRoll
 rngWoundRoll src w tgt =
-    skillRoll rerolls requiredRoll (rngWoundMods src w)
+    skillRoll rerolls (tgt^.model_unmodifiedMinWound) requiredRoll (rngWoundMods src w)
   where
     rerolls = src^.model_rng_mods.mod_rrtowound <> w^.rw_mods.mod_rrtowound
 

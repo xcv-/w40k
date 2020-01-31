@@ -17,7 +17,7 @@ module W40K.Core.Mechanics
   , woundModels
   , fracWoundedModels
   , EquippedModel(..)
-  , em_model, em_ccw, em_rw, em_name
+  , em_model, em_ccw, em_rw, em_name, em_weapons
   , basicEquippedModel
   , attackSplit
   , Modifier
@@ -34,12 +34,14 @@ module W40K.Core.Mechanics
 
   , Turn(..)
   , emptyTurn
-  , renaming
-  , shootingPhase
-  , fightPhase
   , GenericTurn(..)
   , eraseTurn
   , mapGenericTurn
+  , TurnLenses
+  , turnName
+  , turnShooting
+  , turnMelee
+  , turnAttacks
   , turnNumWounds
   , turnNumWoundsMax
   , turnNumSlainModels
@@ -48,6 +50,7 @@ module W40K.Core.Mechanics
   ) where
 
 import Prelude hiding (Functor(..), Monad(..), (=<<))
+import qualified Prelude
 
 import Control.Lens
 
@@ -111,9 +114,9 @@ data WeaponTotalDamage = WeaponTotalDamage
 
 makeLenses ''WeaponTotalDamage
 
-satisfiesReqRoll :: RequiredRoll -> Int -> Int -> Bool
-satisfiesReqRoll (MinModifiedRoll m)   _    r = r >= m
-satisfiesReqRoll (MinUnmodifiedRoll m) mods r = r-mods >= m
+satisfiesReqRoll :: RequiredRoll -> SkillRoll -> Bool
+satisfiesReqRoll (MinModifiedRoll m)   r = modifiedRoll r >= m
+satisfiesReqRoll (MinUnmodifiedRoll m) r = unmodifiedRoll r >= m
 
 rollHits :: IsWeapon w => Model -> w -> Model -> Prob Int
 rollHits src w tgt = do
@@ -131,16 +134,16 @@ rollToHit src w tgt natt hooks =
 
       [RollHook reqRoll eff] -> do
         nhit <- binomial natt pHit
-        neff <- binomial nhit $ min 1 (probOf (satisfiesReqRoll reqRoll mods) (hitRoll src w tgt) / pHit)
+        neff <- binomial nhit $ min 1 (probOf (satisfiesReqRoll reqRoll) (hitRoll src w tgt) / pHit)
         nextra <- resolveHitHook src w tgt neff eff []
         return (nhit + nextra)
 
       _ ->
         -- NOTE: evaluated once and then summed n times
         sumIID natt $ do
-          k <- hitRoll src w tgt
-          let base = if doesHit src w tgt k then 1 else 0
-          extra <- sumProbs $ resolveHooks (\req -> satisfiesReqRoll req mods k) (resolveHitHook src w tgt 1) hooks k
+          r <- hitRoll src w tgt
+          let base = if doesHit src w tgt r then 1 else 0
+          extra <- sumProbs $ resolveHooks (resolveHitHook src w tgt 1) r hooks
           return (base + extra)
   where
     pHit = probHit src w tgt
@@ -169,17 +172,17 @@ rollToWound' src w tgt nhit hooks = do
 
       [RollHook reqRoll eff] -> withMult 1 $ do
         nwound <- binomial nhit pWound
-        neff   <- binomial nwound $ min 1 (probOf (satisfiesReqRoll reqRoll mods) (woundRoll src w tgt) / pWound)
+        neff   <- binomial nwound $ min 1 (probOf (satisfiesReqRoll reqRoll) (woundRoll src w tgt) / pWound)
         extraW <- resolveWoundHook src w tgt neff eff []
 
         let regularWounds = TotalWounds mempty (SortedList.singleton (Wounds nwound (w^.as_weapon)))
         return (regularWounds <> extraW)
 
       _ -> withMult nhit $ do
-          k <- woundRoll src w tgt
-          extra <- foldProbs $ resolveHooks (\req -> satisfiesReqRoll req mods k) (resolveWoundHook src w tgt 1) hooks k
+          r <- woundRoll src w tgt
+          extra <- foldProbs $ resolveHooks (resolveWoundHook src w tgt 1) r hooks
 
-          if doesWound src w tgt k then
+          if doesWound src w tgt r then
             let regularWound = TotalWounds mempty (SortedList.singleton (Wounds 1 (w^.as_weapon)))
             in  return (regularWound <> extra)
           else
@@ -191,13 +194,13 @@ rollToWound' src w tgt nhit hooks = do
     withMult !n !p = (n, p)
 
 
-resolveHooks :: Show a => (RequiredRoll -> Bool) -> (eff -> [RollHook eff] -> Prob a) -> [RollHook eff] -> Int -> [Prob a]
-resolveHooks filterHook resolveEff = go []
+resolveHooks :: Show a => (eff -> [RollHook eff] -> Prob a) -> SkillRoll -> [RollHook eff] -> [Prob a]
+resolveHooks resolveEff r = go r []
   where
-    go _         []                                      _ = []
-    go prevHooks (hook@(RollHook reqRoll eff):nextHooks) rollValue
-      | filterHook reqRoll = resolveEff eff (prevHooks ++ nextHooks) : go (hook:prevHooks) nextHooks rollValue
-      | otherwise          = go (hook:prevHooks) nextHooks rollValue
+    go _ _         []                                  = []
+    go r prevHooks (hook@(RollHook req eff):nextHooks)
+      | satisfiesReqRoll req r = resolveEff eff (prevHooks ++ nextHooks) : go r (hook:prevHooks) nextHooks
+      | otherwise              = go r (hook:prevHooks) nextHooks
 
 resolveHitHook :: IsWeapon w => Model -> w -> Model -> Int -> HitHookEff -> [HitHook] -> Prob Int
 resolveHitHook src w tgt nsuccesses eff otherHooks =
@@ -413,6 +416,10 @@ instance IsModel EquippedModel where
 em_name :: Lens' EquippedModel String
 em_name = em_model.model_name
 
+em_weapons :: Traversal' EquippedModel Weapon
+em_weapons f (EquippedModel m ccw rw) =
+    EquippedModel m <$> as_weapon f ccw <*> (traverse.as_weapon) f rw
+
 basicEquippedModel :: Model -> EquippedModel
 basicEquippedModel model = EquippedModel model basic_ccw []
 
@@ -471,21 +478,13 @@ probKill ct srcs ntgts tgt = probOf (>= ntgts)          (numSlainModelsInt ct sr
 -- TURN MECHANICS
 
 data Turn pr cr = Turn
-  { turnName     :: String
-  , turnPsychic  :: Model -> Prob (MortalWounds, pr)
-  , turnShooting :: pr -> [EquippedModel]
-  , turnCharges  :: pr -> Prob cr
-  , turnMelee    :: pr -> cr -> [EquippedModel]
+  { _turnName     :: String
+  , _turnPsychic  :: Model -> Prob (MortalWounds, pr)
+  , _turnShooting :: pr -> [EquippedModel]
+  , _turnCharges  :: pr -> Prob cr
+  , _turnMelee    :: pr -> cr -> [EquippedModel]
   }
 
-renaming :: Setter' (Turn pr cr) String
-renaming = sets $ \f t -> t { turnName = f (turnName t) }
-
-shootingPhase :: Setter' (Turn pr cr) [EquippedModel]
-shootingPhase = sets $ \f t -> t { turnShooting = \pr -> f (turnShooting t pr ) }
-
-fightPhase :: Setter' (Turn pr cr) [EquippedModel]
-fightPhase = sets $ \f t -> t { turnMelee = \pr cr -> f (turnMelee t pr cr) }
 
 emptyTurn :: Turn () ()
 emptyTurn = Turn "" (\_ -> return (mempty, ())) (\_ -> []) (\_ -> return ()) (\_ _ -> [])
@@ -493,20 +492,20 @@ emptyTurn = Turn "" (\_ -> return (mempty, ())) (\_ -> []) (\_ -> return ()) (\_
 interleaveTurns :: (Ord pr1, Ord cr1, Ord pr2, Ord cr2) => Turn pr1 cr1 -> Turn pr2 cr2 -> Turn (pr1, pr2) (cr1, cr2)
 interleaveTurns turn1 turn2 =
     Turn {
-      turnName =
-        case (turnName turn1, turnName turn2) of
+      _turnName =
+        case (_turnName turn1, _turnName turn2) of
           (n1, "") -> n1
           ("", n2) -> n2
           (n1, n2) -> n1 ++ " + " ++ n2,
 
-      turnPsychic = \tgt -> liftA2 (\(mw1, pr1) (mw2, pr2) -> (mw1 <> mw2, (pr1, pr2)))
-                                   (turnPsychic turn1 tgt)
-                                   (turnPsychic turn2 tgt),
+      _turnPsychic = \tgt -> liftA2 (\(mw1, pr1) (mw2, pr2) -> (mw1 <> mw2, (pr1, pr2)))
+                                    (_turnPsychic turn1 tgt)
+                                    (_turnPsychic turn2 tgt),
 
-      turnCharges = \(pr1, pr2) -> liftA2 (,) (turnCharges turn1 pr1) (turnCharges turn2 pr2),
+      _turnCharges = \(pr1, pr2) -> liftA2 (,) (_turnCharges turn1 pr1) (_turnCharges turn2 pr2),
 
-      turnShooting = \(pr1, pr2)            -> turnShooting turn1 pr1 ++ turnShooting turn2 pr2,
-      turnMelee    = \(pr1, pr2) (cr1, cr2) -> turnMelee turn1 pr1 cr1 ++ turnMelee turn2 pr2 cr2
+      _turnShooting = \(pr1, pr2)            -> _turnShooting turn1 pr1  ++ _turnShooting turn2 pr2,
+      _turnMelee    = \(pr1, pr2) (cr1, cr2) -> _turnMelee turn1 pr1 cr1 ++ _turnMelee turn2 pr2 cr2
     }
 
 data GenericTurn = forall pr cr. (Ord pr, Ord cr) => GenericTurn (Turn pr cr)
@@ -524,37 +523,56 @@ instance Monoid GenericTurn where
   mempty = eraseTurn emptyTurn
 
 
+class TurnLenses turn where
+  turnName     :: Lens' turn String
+  turnShooting :: Setter' turn [EquippedModel]
+  turnMelee    :: Setter' turn [EquippedModel]
+
+turnAttacks :: TurnLenses turn => Setter' turn [EquippedModel]
+turnAttacks = sets $ \f -> over turnShooting f . over turnMelee f
+
+instance TurnLenses (Turn pr cr) where
+  turnName f t = Prelude.fmap (\name' -> t { _turnName = name' }) $ f (_turnName t)
+  turnShooting = sets $ \f t -> t { _turnShooting = f . _turnShooting t }
+  turnMelee    = sets $ \f t -> t { _turnMelee    = \pr -> f . _turnMelee t pr }
+
+instance TurnLenses GenericTurn where
+  turnName f (GenericTurn t) = Prelude.fmap GenericTurn (turnName f t)
+  turnShooting = sets $ \f -> mapGenericTurn (over turnShooting f)
+  turnMelee    = sets $ \f -> mapGenericTurn (over turnMelee f)
+
+
 turnNumWounds :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Prob Int
 turnNumWounds turn tgt = do
-    (mw, pr) <- turnPsychic turn tgt
+    (mw, pr) <- _turnPsychic turn tgt
     let psydmg = WeaponTotalDamage Nothing (effectiveMortalWounds tgt mw)
-    cr <- turnCharges turn pr
+    cr <- _turnCharges turn pr
 
     sumProbs [sumWounds [return psydmg],
-              numWounds Ranged (turnShooting turn pr) (tgt^.as_model),
-              numWounds Melee  (turnMelee turn pr cr) (tgt^.as_model)]
+              numWounds Ranged (_turnShooting turn pr) (tgt^.as_model),
+              numWounds Melee  (_turnMelee turn pr cr) (tgt^.as_model)]
 
 turnNumWoundsMax :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Int -> Prob Int
 turnNumWoundsMax turn tgt maxWounds = do
-    (mw, pr) <- turnPsychic turn tgt
+    (mw, pr) <- _turnPsychic turn tgt
     let psydmg = WeaponTotalDamage Nothing (effectiveMortalWounds tgt mw)
-    cr <- turnCharges turn pr
+    cr <- _turnCharges turn pr
 
     sumProbs [sumWoundsMax maxWounds [return psydmg],
-              numWoundsMax Ranged (turnShooting turn pr) tgt maxWounds,
-              numWoundsMax Melee  (turnMelee turn pr cr) tgt maxWounds]
+              numWoundsMax Ranged (_turnShooting turn pr) tgt maxWounds,
+              numWoundsMax Melee  (_turnMelee turn pr cr) tgt maxWounds]
       & fmapProbMonotone (min maxWounds)
 
 turnNumSlainModels :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Prob QQ
 turnNumSlainModels turn tgt = do
-    (mw, pr) <- turnPsychic turn tgt
+    (mw, pr) <- _turnPsychic turn tgt
     let psydmg = WeaponTotalDamage Nothing (effectiveMortalWounds tgt mw)
-    cr <- turnCharges turn pr
+    cr <- _turnCharges turn pr
 
     fmapProbMonotone (fracWoundedModels tgt) $
       woundModels tgt (WoundedModels 0 0) [return psydmg]
-        >>= resumeNumWoundedModels Ranged (turnShooting turn pr) tgt
-        >>= resumeNumWoundedModels Melee  (turnMelee turn pr cr) tgt
+        >>= resumeNumWoundedModels Ranged (_turnShooting turn pr) tgt
+        >>= resumeNumWoundedModels Melee  (_turnMelee turn pr cr) tgt
 
 turnNumSlainModelsInt :: (Ord pr, Ord cr) => Turn pr cr -> Model -> Prob Int
 turnNumSlainModelsInt turn = fmapProbMonotone floor . turnNumSlainModels turn

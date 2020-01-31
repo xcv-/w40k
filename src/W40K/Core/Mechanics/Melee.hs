@@ -47,8 +47,11 @@ makeUnwieldly :: CCWeapon -> CCWeapon
 makeUnwieldly = ccw_weapon.w_mods.mod_tohit -~ 1
 
 
-instance IsWeapon CCWeapon where
+instance AsWeapon CCWeapon where
     as_weapon = ccw_weapon
+
+
+instance IsWeapon CCWeapon where
     weaponAttacks src w = return $ applyIntMod (w^.ccw_attBonus) (src^.model_att)
 
     hitMods = ccHitMods
@@ -73,13 +76,13 @@ ccHitMods src w tgt =
      + tgt^.model_cc_mods.mod_tobehit
 
 -- autohit not taken into account because there is no hit roll for auto-hitting weapons (FAQ'd)
-ccDoesHit :: Model -> CCWeapon -> Model -> Int -> Bool
+ccDoesHit :: Model -> CCWeapon -> Model -> SkillRoll -> Bool
 ccDoesHit src w _ =
-    (>=! src^.model_ws)
+    (>=! src^.model_ws) . modifiedRoll
 
-ccHitRoll :: Model -> CCWeapon -> Model -> Prob Int
+ccHitRoll :: Model -> CCWeapon -> Model -> Prob SkillRoll
 ccHitRoll src w tgt =
-    skillRoll rerolls (src^.model_ws) (ccHitMods src w tgt)
+    skillRoll rerolls 1 (src^.model_ws) (ccHitMods src w tgt)
   where
     rerolls = src^.model_cc_mods.mod_rrtohit <> w^.ccw_mods.mod_rrtohit
 
@@ -87,17 +90,17 @@ ccHitRoll src w tgt =
 ccWoundMods :: Model -> CCWeapon -> Int
 ccWoundMods src w = src^.model_cc_mods.mod_towound + w^.ccw_mods.mod_towound
 
-ccDoesWound :: Model -> CCWeapon -> Model -> Int -> Bool
-ccDoesWound src w tgt =
-    (>=! requiredRoll)
+ccDoesWound :: Model -> CCWeapon -> Model -> SkillRoll -> Bool
+ccDoesWound src w tgt r =
+    unmodifiedRoll r >=! tgt^.model_unmodifiedMinWound && modifiedRoll r >=! requiredRoll
   where
     requiredRoll = requiredWoundRoll (w^.ccw_weapon)
                                      (applyIntMod (w^.ccw_strMod) $ src^.model_str)
                                      tgt
 
-ccWoundRoll :: Model -> CCWeapon -> Model -> Prob Int
+ccWoundRoll :: Model -> CCWeapon -> Model -> Prob SkillRoll
 ccWoundRoll src w tgt =
-    skillRoll rerolls requiredRoll (ccWoundMods src w)
+    skillRoll rerolls (tgt^.model_unmodifiedMinWound) requiredRoll (ccWoundMods src w)
   where
     rerolls = src^.model_cc_mods.mod_rrtowound <> w^.ccw_mods.mod_rrtowound
 

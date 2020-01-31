@@ -4,7 +4,7 @@ module W40K.Data.GreyKnights where
 
 import Prelude hiding (Functor(..), Monad(..))
 import Data.Function (on)
-import Data.List (maximumBy, sort)
+import Data.List (isInfixOf, isPrefixOf, maximumBy, sort)
 import Control.Lens
 
 import W40K.Core.ConstrMonad
@@ -34,49 +34,105 @@ chaplainAura :: Aura
 chaplainAura = noAura & aura_cc.mod_rrtohit .~ RerollFailed
 
 
--- MODIFIERS
+-- WEAPON TYPES
+
+isNemesisWeapon :: AsWeapon w => w -> Bool
+isNemesisWeapon w =
+    "nemesis" `isInfixOf` name || name `elem` nemesisRelics
+  where
+    name = w^.as_weapon.w_name
+    nemesisRelics =
+      [ "the titansword", "malleus argyrum", "black blade of antwyr"
+      , "destroyer of crys'yllix", "soul glaive", "blade of the forsworn"
+      ]
+
+
+isBoltWeapon :: AsWeapon w => w -> Bool
+isBoltWeapon w =
+    "bolt" `isInfixOf` name || name `elem` boltRelics
+  where
+    name = w^.as_weapon.w_name
+    boltRelics = ["fury of deimos"]
+
+
+isPsiWeapon :: AsWeapon w => w -> Bool
+isPsiWeapon w =
+    "psybolt" `isInfixOf` name || any (`isPrefixOf` name) psiWeapons
+  where
+    name = w^.as_weapon.w_name
+    psiWeapons = ["psilencer", "psycannon", "heavy psycannon", "gatling psilencer"]
+
+
+-- TIDES
+
+tideOfConvergence :: Modifier
+tideOfConvergence =
+    filtered (\em -> em^.em_model.model_class == Infantry).em_rw.mapped.filtered isPsiWeapon %~
+      stack [rw_str +~ 1, rw_dmg %~ fmap (+1), rw_name <>~ " (ToC)"]
+
+
+-- STRATAGEMS
+
+psyboltAmmo :: Modifier
+psyboltAmmo =
+    em_rw.mapped.filtered isBoltWeapon %~
+      stack [rw_ap -~ 1, rw_str +~ 1, rw_name <>~ " (psybolt)"]
+
+
+psyOnslaught :: Modifier
+psyOnslaught =
+    em_rw.mapped.filtered (\rw -> rw^.rw_name `elem` psiWeapons) %~
+      stack [rw_ap -~ 1, rw_str +~ 1, rw_name <>~ " (onslaught)"]
+  where
+    psiWeapons = ["psilencer", "psycannon", "heavy psycannon", "gatling psilencer"]
+
+
+bringDownTheBeast :: Modifier
+bringDownTheBeast = em_model.model_mods.mod_rrtowound .~ RerollAll
+
+
+furyOfTheProven :: Modifier
+furyOfTheProven = em_model.model_mods.mod_tohit +~ 1
+-- TODO: TERMINATOR keyword only
+
+
+heedThePrognosticars :: Model -> Model
+heedThePrognosticars = (model_name <>~ " (HtP)") . (model_mods.mod_toinv +~ 1)
+
+
+-- LITANIES
+
+invocationOfFocus :: Modifier
+invocationOfFocus =
+    em_weapons.filtered (\w -> isPsiWeapon w || isNemesisWeapon w) %~
+      stack [w_ap -~ 1, w_name <>~ " (IoF)"]
+
+
+-- MISC MODIFIERS
 
 gkWithSpecialWeapon :: RngWeapon -> Modifier
 gkWithSpecialWeapon rw em = em
   & em_rw  .~ [rw]
   & em_ccw .~ basic_ccw
 
+
 brotherhoodBanner :: Modifier
 brotherhoodBanner m = m & em_model.model_att +~ 1 & em_model.model_ld +~ 1
+
 
 hammerhanded :: Modifier
 hammerhanded = em_model.model_cc_mods.mod_towound +~ 1
 
-psyboltAmmo :: Modifier
-psyboltAmmo = em_rw.mapped %~ applyPsybolt
-  where
-    applyPsybolt rw
-      | rw^.rw_name `elem` psyboltWeapons = rw & rw_ap -~ 1 & rw_str +~ 1
-      | otherwise                         = rw
-
-    psyboltWeapons = ["boltgun", "storm bolter", "hurricane bolter", "heavy bolter"]
-
-psyOnslaughtAmmo :: Modifier
-psyOnslaughtAmmo = em_rw.mapped %~ applyOnslaught
-  where
-    applyOnslaught rw
-      | rw^.rw_name `elem` onslaughtWeapons = rw & rw_ap -~ 1 & rw_str +~ 1
-      | otherwise                           = rw
-
-    onslaughtWeapons = ["psilencer", "psycannon", "heavy psycannon", "gatling psilencer"]
-
-
-heedThePrognosticars :: Model -> Model
-heedThePrognosticars = (model_name <>~ " (HtP)") . (model_mods.mod_toinv +~ 1)
 
 sanctuary :: Model -> Model
-sanctuary = (model_name <>~ " (sanctuary)") . improveInv model_cc_inv . improveInv model_rng_inv
+sanctuary = stack [model_inv %~ improveInv, model_name <>~ " (sanctuary)"]
   where
-    improveInv :: Lens' Model Int -> Model -> Model
-    improveInv inv_lens m
-      | m^.inv_lens <= 3 = m                    -- see FAQ
-      | m^.inv_lens >= 7 = m & inv_lens .~ 5
-      | otherwise        = m & inv_lens -~ 1
+    improveInv :: Int -> Int
+    improveInv inv
+      | inv <= 3  = inv                    -- see FAQ
+      | inv >= 7  = 5
+      | otherwise = inv - 1
+
 
 bladeShieldStance :: RollMods -> RollMods
 bladeShieldStance = mod_tosave +~ 1
@@ -88,7 +144,7 @@ swordStrikeStance = mod_towound +~ 1
 -- MODELS
 
 asJusticar :: Model -> Model
-asJusticar = (model_ld +~ 1) . (model_att +~ 1) . (model_name <>~ " justicar")
+asJusticar = stack [model_ld +~ 1, model_att +~ 1, model_name <>~ " justicar"]
 
 greyKnightModel :: Model
 greyKnightModel = meq
@@ -272,7 +328,6 @@ nemesisSword = forceSword
 
 falchion :: CCWeapon
 falchion = nemesis_ccw
-  & ccw_attBonus .~ NoMod
   & ccw_ap       .~ -2
   & ccw_name     .~ "nemesis falchion"
 
@@ -377,7 +432,9 @@ purifier :: CCWeapon -> EquippedModel
 purifier ccw = gkEquippedModel purifierModel ccw
 
 purifierJusticar :: CCWeapon -> EquippedModel
-purifierJusticar = gkEquippedModel (asJusticar purifierModel & model_name .~ "knight of the flame")
+purifierJusticar = gkEquippedModel $
+    asJusticar purifierModel
+      & model_name .~ "knight of the flame"
 
 terminator :: CCWeapon -> EquippedModel
 terminator = gkEquippedModel terminatorModel
@@ -460,7 +517,7 @@ specialWeaponStrikeSquad10 rng ccw =
       ++ [greyKnightJusticar ccw]
 
 purgatorSquad :: RngWeapon -> [EquippedModel]
-purgatorSquad rw = purgatorJusticar twoFalchions : replicate 4 (purgator rw)
+purgatorSquad rw = purgatorJusticar halberd : replicate 4 (purgator rw)
 
 terminatorSquad :: Int -> CCWeapon -> [EquippedModel]
 terminatorSquad n ccw = terminatorJusticar ccw : replicate (n-1) (terminator ccw)

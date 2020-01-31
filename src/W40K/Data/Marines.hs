@@ -9,6 +9,13 @@ import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Data.Common
 
+
+-- STRATAGEMS
+
+transhumanPhysiology :: Model -> Model
+transhumanPhysiology = model_unmodifiedMinWound %~ max 4
+
+
 -- AURAS
 
 captainAura :: Aura
@@ -18,8 +25,9 @@ liutenantAura :: Aura
 liutenantAura = noAura & aura_any.mod_rrtowound .~ RerollOnes
 
 guillimanAura :: Aura
-guillimanAura = noAura & aura_any.mod_rrtohit   .~ RerollFailed
-                       & aura_any.mod_rrtowound .~ RerollFailed
+guillimanAura = noAura
+  & aura_any.mod_rrtohit   .~ RerollAll
+  & aura_any.mod_rrtowound .~ RerollOnes
 
 telionAbility :: Model -> Model
 telionAbility = model_mods.mod_tohit +~ 1
@@ -119,6 +127,7 @@ leviathanDreadnought :: Model
 leviathanDreadnought = venDreadnought
   & model_tgh  .~ 8
   & model_wnd  .~ 14
+  & model_save .~ 2
   & model_inv  .~ 4
   & model_fnp  .~ 7
   & model_name .~ "leviathan dreadnought"
@@ -156,9 +165,9 @@ stormraven = stormtalon
 
 landraider :: Model
 landraider = rhino
-  & model_wnd         .~ 16
   & model_str         .~ 8
   & model_tgh         .~ 8
+  & model_wnd         .~ 16
   & model_att         .~ 6
   & model_ld          .~ 9
   & model_save        .~ 2

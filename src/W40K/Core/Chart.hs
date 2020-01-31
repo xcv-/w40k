@@ -5,6 +5,7 @@ module W40K.Core.Chart
   , ProbPlotType(..)
   , AnalysisFn(..)
   , AnalysisConfig(..)
+  , AnalysisConfigGroup(..)
   , AnalysisResultsTable
   , AnalysisResults(..)
   , mapResultsTable
@@ -29,12 +30,12 @@ data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
 data AnalysisFn tgt r where
     NumWounds       :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
     NumWoundsMax    :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    WoundingSummary :: IsModel tgt =>                 AnalysisFn tgt        (Prob Int)
     SlainModels     :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob QQ)
     SlainModelsInt  :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
+    SlainSummary    :: IsModel tgt =>                 AnalysisFn tgt        (Prob QQ)
     ProbKill        :: IsModel tgt =>                 AnalysisFn (Int, tgt) QQ
     ProbKillOne     :: IsModel tgt =>                 AnalysisFn tgt        QQ
-    AverageWounds   :: IsModel tgt =>                 AnalysisFn tgt        QQ
-    WoundingSummary :: IsModel tgt =>                 AnalysisFn tgt        (Prob QQ)
 
 
 data AnalysisConfig = forall tgt r. AnalysisConfig
@@ -43,6 +44,12 @@ data AnalysisConfig = forall tgt r. AnalysisConfig
   , attackers     :: [GenericTurn]
   , targets       :: [tgt]
   }
+
+data AnalysisConfigGroup = AnalysisConfigGroup
+  { groupName    :: String
+  , groupConfigs :: [AnalysisConfig]
+  }
+
 
 type AnalysisResultsTable r = [(String, [(String, r)])]
 
@@ -60,37 +67,36 @@ mapResultsTable f = mapped._2.mapped._2 %~ f
 analysisFnName :: AnalysisFn tgt r -> String
 analysisFnName (NumWounds _)      = "wounds"
 analysisFnName (NumWoundsMax _)   = "wounds"
+analysisFnName WoundingSummary    = "wounding summary"
 analysisFnName (SlainModels _)    = "slain models"
 analysisFnName (SlainModelsInt _) = "wholly slain models"
+analysisFnName SlainSummary       = "slain summary"
 analysisFnName ProbKill           = "kill probability"
 analysisFnName ProbKillOne        = "kill probability"
-analysisFnName AverageWounds      = "average wounds"
-analysisFnName WoundingSummary    = "wounding summary"
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
 analysisFnTgtName (NumWounds _)      = (^.as_model.model_name)
 analysisFnTgtName (NumWoundsMax _)   = (^.as_model.model_name)
+analysisFnTgtName WoundingSummary    = (^.as_model.model_name)
 analysisFnTgtName (SlainModels _)    = (^.as_model.model_name)
 analysisFnTgtName (SlainModelsInt _) = (^.as_model.model_name)
+analysisFnTgtName SlainSummary       = (^.as_model.model_name)
 analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.as_model.model_name
 analysisFnTgtName ProbKillOne        = (^.as_model.model_name)
-analysisFnTgtName AverageWounds      = (^.as_model.model_name)
-analysisFnTgtName WoundingSummary    = (^.as_model.model_name)
 
 applyAnalysisFn :: (Ord pr, Ord cr) => AnalysisFn tgt r -> Turn pr cr -> tgt -> r
 applyAnalysisFn fn turn tgt =
     case fn of
       NumWounds _      -> addImpossibleEvents $ turnNumWounds turn (tgt^.as_model)
       NumWoundsMax _   -> addImpossibleEvents $ turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
+      WoundingSummary  -> turnNumWounds turn (tgt^.as_model)
 
       SlainModels _    -> turnNumSlainModels turn (tgt^.as_model)
       SlainModelsInt _ -> addImpossibleEvents $ turnNumSlainModelsInt turn (tgt^.as_model)
+      SlainSummary     -> turnNumSlainModels turn (tgt^.as_model)
 
       ProbKill         -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
       ProbKillOne      -> turnProbKill turn 1 (tgt^.as_model)
-
-      AverageWounds    -> mean $ applyAnalysisFn WoundingSummary turn tgt
-      WoundingSummary  -> fmapProbMonotone fromIntegral $ turnNumWounds turn (tgt^.as_model)
 
 
 forceResults :: AnalysisResults -> AnalysisResults
@@ -108,7 +114,7 @@ analyzeByAttacker fn turns tgts =
                 , let traceText = analysisFnName fn ++ " " ++ title ++ " " ++ legend
                 ])
       | GenericTurn turn <- turns
-      , let title = titleAtt (turnName turn)
+      , let title = titleAtt (_turnName turn)
       ]
   where
     legendTgt tgt = "vs " ++ analysisFnTgtName fn tgt
@@ -119,7 +125,7 @@ analyzeByTarget fn turns tgts =
     forceResults $ AnalysisResults fn
       [ (title, [ trace traceText (legend, applyAnalysisFn fn turn tgt)
                 | GenericTurn turn <- turns
-                , let legend = legendAtt (turnName turn)
+                , let legend = legendAtt (_turnName turn)
                 , let traceText = analysisFnName fn ++ " " ++ title ++ " " ++ legend
                 ])
       | tgt <- tgts
