@@ -30,8 +30,8 @@ module W40K.Core.Prob
   , foldIID
   , sumIID
   , addImpossibleEvents
-  , distribution
-  , revDistribution
+  , cdf
+  , ccdf
   , summary
   , summaryInt
   , mean
@@ -257,15 +257,18 @@ addImpossibleEvents prob =
       | a <  a' = e : merge es ees'
       | a >  a' = e' : merge ees es'
 
-distribution :: Ord a => Prob a -> [Event a]
-distribution = scanl1 sumEvents . events
+cdf :: Ord a => Prob a -> [Event a]
+cdf = scanl1 sumEvents . events
   where
     sumEvents (Event a p) (Event a' p') = Event a' (p + p')
 
-revDistribution :: Ord a => Prob a -> [Event a]
-revDistribution = scanr1 sumEvents . events
+ccdf :: Ord a => Prob a -> [Event a]
+ccdf = scanr1 sumEvents . events
   where
     sumEvents (Event a p) (Event a' p') = Event a (p + p')
+
+icdf :: Ord a => Prob a -> [Event a]
+icdf = undefined
 
 summary :: Prob QQ -> IO ()
 summary p =

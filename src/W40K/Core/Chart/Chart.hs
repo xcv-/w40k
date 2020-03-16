@@ -64,8 +64,8 @@ eventChart title relevantEvts evts =
       let (Event a _) = last relevantEvts
       in a
 
-densityChart :: Chart.PlotValue a => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
-densityChart title prob = eventChart title (relevantEvents dens) dens
+chartDF :: Chart.PlotValue a => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+chartDF title prob = eventChart title (relevantEvents dens) dens
   where
     dens = events prob
 
@@ -81,14 +81,14 @@ densityChart title prob = eventChart title (relevantEvents dens) dens
       | q <= 0    = []
       | otherwise = e : takeUntilAccumPercent (q - p) es
 
-distributionChart :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
-distributionChart title prob = eventChart title (relevantEvents dist) dist
+chartCDF :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+chartCDF title prob = eventChart title (relevantEvents dist) dist
   where
     dist = distribution prob
     relevantEvents = takeWhile (\(Event _ p) -> p <= 0.99)
 
-revDistributionChart :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
-revDistributionChart title prob = eventChart title (relevantEvents revDist) revDist
+chartCCDF :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+chartCCDF title prob = eventChart title (relevantEvents revDist) revDist
   where
     revDist = revDistribution prob
     relevantEvents = takeWhile (\(Event _ p) -> p >= 1 - 0.99)
@@ -101,9 +101,9 @@ probAnalysisChart xlabel plotType =
   where
     mb << ma = ma >> mb
 
-    chartFn DensityPlot         = densityChart
-    chartFn DistributionPlot    = distributionChart
-    chartFn RevDistributionPlot = revDistributionChart
+    chartFn PlotDF   = chartDF
+    chartFn PlotCDF  = chartCDF
+    chartFn PlotCCDF = chartCCDF
 
     buildLayout :: Chart.PlotValue a => String -> [Chart.PlotLines a Chart.Percent] -> Chart.Layout a Chart.Percent
     buildLayout title linePlots = def

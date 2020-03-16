@@ -3,6 +3,7 @@
 module W40K.Core.Chart
   ( AnalysisOrder(..)
   , ProbPlotType(..)
+  , ErrorBarType(..)
   , AnalysisFn(..)
   , AnalysisConfig(..)
   , AnalysisConfigGroup(..)
@@ -25,15 +26,17 @@ import W40K.Core.Util (whnfItems)
 
 data AnalysisOrder = ByAttacker | ByTarget
 
-data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
+data ProbPlotType = PlotDF | PlotCDF | PlotCCDF
+
+data ErrorBarType = StandardDeviationFactor !QQ | MinCentralProbability !QQ
 
 data AnalysisFn tgt r where
     NumWounds       :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
     NumWoundsMax    :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
-    WoundingSummary :: IsModel tgt =>                 AnalysisFn tgt        (Prob Int)
+    WoundingSummary :: IsModel tgt => ErrorBarType -> AnalysisFn tgt        (Prob Int)
     SlainModels     :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob QQ)
     SlainModelsInt  :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
-    SlainSummary    :: IsModel tgt =>                 AnalysisFn tgt        (Prob QQ)
+    SlainSummary    :: IsModel tgt => ErrorBarType -> AnalysisFn tgt        (Prob QQ)
     ProbKill        :: IsModel tgt =>                 AnalysisFn (Int, tgt) QQ
     ProbKillOne     :: IsModel tgt =>                 AnalysisFn tgt        QQ
 
@@ -65,38 +68,38 @@ mapResultsTable :: (r1 -> r2) -> AnalysisResultsTable r1 -> AnalysisResultsTable
 mapResultsTable f = mapped._2.mapped._2 %~ f
 
 analysisFnName :: AnalysisFn tgt r -> String
-analysisFnName (NumWounds _)      = "wounds"
-analysisFnName (NumWoundsMax _)   = "wounds"
-analysisFnName WoundingSummary    = "wounding summary"
-analysisFnName (SlainModels _)    = "slain models"
-analysisFnName (SlainModelsInt _) = "wholly slain models"
-analysisFnName SlainSummary       = "slain summary"
-analysisFnName ProbKill           = "kill probability"
-analysisFnName ProbKillOne        = "kill probability"
+analysisFnName (NumWounds _)       = "wounds"
+analysisFnName (NumWoundsMax _)    = "wounds"
+analysisFnName (WoundingSummary _) = "wounding summary"
+analysisFnName (SlainModels _)     = "slain models"
+analysisFnName (SlainModelsInt _)  = "wholly slain models"
+analysisFnName (SlainSummary _)    = "slain summary"
+analysisFnName ProbKill            = "kill probability"
+analysisFnName ProbKillOne         = "kill probability"
 
 analysisFnTgtName :: AnalysisFn tgt r -> tgt -> String
-analysisFnTgtName (NumWounds _)      = (^.as_model.model_name)
-analysisFnTgtName (NumWoundsMax _)   = (^.as_model.model_name)
-analysisFnTgtName WoundingSummary    = (^.as_model.model_name)
-analysisFnTgtName (SlainModels _)    = (^.as_model.model_name)
-analysisFnTgtName (SlainModelsInt _) = (^.as_model.model_name)
-analysisFnTgtName SlainSummary       = (^.as_model.model_name)
-analysisFnTgtName ProbKill           = \(n,m) -> show n ++ " " ++ m^.as_model.model_name
-analysisFnTgtName ProbKillOne        = (^.as_model.model_name)
+analysisFnTgtName (NumWounds _)       = (^.as_model.model_name)
+analysisFnTgtName (NumWoundsMax _)    = (^.as_model.model_name)
+analysisFnTgtName (WoundingSummary _) = (^.as_model.model_name)
+analysisFnTgtName (SlainModels _)     = (^.as_model.model_name)
+analysisFnTgtName (SlainModelsInt _)  = (^.as_model.model_name)
+analysisFnTgtName (SlainSummary _)    = (^.as_model.model_name)
+analysisFnTgtName ProbKill            = \(n,m) -> show n ++ " " ++ m^.as_model.model_name
+analysisFnTgtName ProbKillOne         = (^.as_model.model_name)
 
 applyAnalysisFn :: (Ord pr, Ord cr) => AnalysisFn tgt r -> Turn pr cr -> tgt -> r
 applyAnalysisFn fn turn tgt =
     case fn of
-      NumWounds _      -> addImpossibleEvents $ turnNumWounds turn (tgt^.as_model)
-      NumWoundsMax _   -> addImpossibleEvents $ turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
-      WoundingSummary  -> turnNumWounds turn (tgt^.as_model)
+      NumWounds _       -> addImpossibleEvents $ turnNumWounds turn (tgt^.as_model)
+      NumWoundsMax _    -> addImpossibleEvents $ turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
+      WoundingSummary _ -> turnNumWounds turn (tgt^.as_model)
 
-      SlainModels _    -> turnNumSlainModels turn (tgt^.as_model)
-      SlainModelsInt _ -> addImpossibleEvents $ turnNumSlainModelsInt turn (tgt^.as_model)
-      SlainSummary     -> turnNumSlainModels turn (tgt^.as_model)
+      SlainModels _     -> turnNumSlainModels turn (tgt^.as_model)
+      SlainModelsInt _  -> addImpossibleEvents $ turnNumSlainModelsInt turn (tgt^.as_model)
+      SlainSummary _    -> turnNumSlainModels turn (tgt^.as_model)
 
-      ProbKill         -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
-      ProbKillOne      -> turnProbKill turn 1 (tgt^.as_model)
+      ProbKill          -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
+      ProbKillOne       -> turnProbKill turn 1 (tgt^.as_model)
 
 
 forceResults :: AnalysisResults -> AnalysisResults

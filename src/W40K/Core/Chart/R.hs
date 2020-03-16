@@ -29,7 +29,7 @@ import qualified H.Prelude as H
 
 import W40K.Core.Chart
 import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone,
-                       events, distribution, revDistribution,
+                       events, icdf, cdf, ccdf,
                        mean, stDev)
 import W40K.Core.Util (capitalize)
 
@@ -88,18 +88,28 @@ tidyNumericTable results = do
       |]
 
 
-tidySummaryTable :: AnalysisResultsTable (Prob QQ) -> R s (SomeSEXP s)
-tidySummaryTable results = do
-    df <- tidyResultsTable results $ \i title j legend prob ->
-            let (m, s) = (mean prob, stDev prob)
-            in [r|
+tidySummaryTable :: ErrorBarType -> AnalysisResultsTable (Prob QQ) -> R s (SomeSEXP s)
+tidySummaryTable etype results = do
+    df <- tidyResultsTable results $ \i title j legend prob -> do
+            let
+              m = mean prob
+
+              (confMin, confMax) =
+                case etype of
+                  StandardDeviationFactor k -> let sd = stDev prob in (m - k*sd, m + k*sd)
+                  MinCentralProbability p -> (idf prob (1/2 - p/2), idf prob (1-p)
+              (m, s) = (mean prob, stDev prob)
+              (confMin, confMax) = (m - s, m + s)
+
+            [r|
                 tibble(
                   title_idx  = i_hs,
                   title      = title_hs,
                   legend_idx = j_hs,
                   legend     = legend_hs,
                   mean       = m_hs,
-                  std        = s_hs)
+                  conf_min   = confMin_hs,
+                  conf_max   = confMax_hs)
             |]
     [r|
       df_hs %>%
@@ -133,9 +143,9 @@ tidyProbResultsTable ptype results = do
     probPoints :: Ord a => Prob a -> ([a], [QQ])
     probPoints =
         case ptype of
-          DensityPlot         -> unzipEvents . safeTakeUntilAccumPercent 0.99 . events
-          DistributionPlot    -> unzipEvents . takeWhile (\(Event _ p) -> p <=   0.99) . distribution
-          RevDistributionPlot -> unzipEvents . takeWhile (\(Event _ p) -> p >= 1-0.99) . revDistribution
+          PlotDF   -> unzipEvents . safeTakeUntilAccumPercent 0.99 . events
+          PlotCDF  -> unzipEvents . takeWhile (\(Event _ p) -> p <=   0.99) . cdf
+          PlotCCDF -> unzipEvents . takeWhile (\(Event _ p) -> p >= 1-0.99) . ccdf
 
     unzipEvents :: [Event a] -> ([a], [QQ])
     unzipEvents es = unzip [(a, p) | Event a p <- es]
@@ -195,16 +205,16 @@ analysisProbBarPlot ylabel tbl = do
     return (GGPlot p' w h)
 
 
-analysisSummaryErrBarPlot :: String -> AnalysisResultsTable (Prob QQ) -> R s (GGPlot s)
-analysisSummaryErrBarPlot (capitalize -> ylabel) results = do
-    df <- tidySummaryTable results
+analysisSummaryErrBarPlot :: String -> ErrorBarType -> AnalysisResultsTable (Prob QQ) -> R s (GGPlot s)
+analysisSummaryErrBarPlot (capitalize -> ylabel) etype results = do
+    df <- tidySummaryTable etype results
 
     obj <- [r|
       facet_names = df_hs$title
       names(facet_names) = df_hs$title_idx
 
       df_hs %>%
-        ggplot(aes(x=legend, y=mean, ymin=mean-std, ymax=mean+std, fill=legend)) +
+        ggplot(aes(x=legend, y=mean, ymin=conf_min, ymax=conf_max, fill=legend)) +
           geom_col(position=position_dodge(), width=0.8) +
           geom_errorbar(position=position_dodge(), width=0.5, size=0.2) +
           labs(
@@ -261,13 +271,13 @@ probAnalysisChart (capitalize -> xlabel) ptype results = do
 plotResults :: AnalysisResults -> R s (GGPlot s)
 plotResults (AnalysisResults fn results) =
     case fn of
-      NumWounds      ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
-      NumWoundsMax   ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
-      WoundingSummary      -> analysisSummaryErrBarPlot "Average wounds ± std"             (floatResults results)
+      NumWounds       ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
+      NumWoundsMax    ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
+      WoundingSummary etype -> analysisSummaryErrBarPlot "Average wounds ± std"       etype (floatResults results)
 
       SlainModelsInt ptype -> probAnalysisChart (xlabel ptype "wholly slain models") ptype (int32results results)
       SlainModels    ptype -> probAnalysisChart (xlabel ptype "slain models")        ptype results
-      SlainSummary         -> analysisSummaryErrBarPlot "Average killed ± std"             results
+      SlainSummary   etype -> analysisSummaryErrBarPlot "Average killed ± std"       etype results
 
       ProbKill             -> analysisProbBarPlot "Kill probability (%)" results
       ProbKillOne          -> analysisProbBarPlot "Kill probability (%)" results
@@ -275,9 +285,9 @@ plotResults (AnalysisResults fn results) =
     floatResults = mapResultsTable (fmapProbMonotone toDouble)
     int32results = mapResultsTable (fmapProbMonotone toInt32)
 
-    xlabel DensityPlot         base = base
-    xlabel DistributionPlot    base = "maximum " ++ base
-    xlabel RevDistributionPlot base = "minimum " ++ base
+    xlabel PlotDF   base = base
+    xlabel PlotCDF  base = "maximum " ++ base
+    xlabel PlotCCDF base = "minimum " ++ base
 
 analyze :: AnalysisConfig -> R s (AnalysisResults, GGPlot s)
 analyze (AnalysisConfig order fn turns tgts) =
