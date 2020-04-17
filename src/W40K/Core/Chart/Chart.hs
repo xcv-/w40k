@@ -6,6 +6,7 @@
 {-# language TypeFamilies #-}
 {-# language UndecidableInstances #-}
 module W40K.Core.Chart.Chart
+  {-# deprecated "Use W40K.Core.Chart.R instead" #-}
   ( plotResults
   , analyze
   , analyzeAll
@@ -34,7 +35,7 @@ import qualified Graphics.Rendering.Chart                  as Chart
 import qualified Graphics.Rendering.Chart.Backend.Diagrams as ChartD
 
 import W40K.Core.Chart
-import W40K.Core.Prob (Event(..), Prob, QQ, events, distribution, revDistribution)
+import W40K.Core.Prob (Event(..), Prob, QQ, events, cdf, ccdf)
 import W40K.Core.Util (capitalize)
 
 
@@ -84,13 +85,13 @@ chartDF title prob = eventChart title (relevantEvents dens) dens
 chartCDF :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
 chartCDF title prob = eventChart title (relevantEvents dist) dist
   where
-    dist = distribution prob
+    dist = cdf prob
     relevantEvents = takeWhile (\(Event _ p) -> p <= 0.99)
 
 chartCCDF :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
 chartCCDF title prob = eventChart title (relevantEvents revDist) revDist
   where
-    revDist = revDistribution prob
+    revDist = ccdf prob
     relevantEvents = takeWhile (\(Event _ p) -> p >= 1 - 0.99)
 
 probAnalysisChart :: (Ord a, Chart.PlotValue a) => String -> ProbPlotType -> AnalysisResultsTable (Prob a) -> [Chart.Layout a Chart.Percent]
@@ -182,13 +183,13 @@ plotResults :: AnalysisResults -> IO (Diagram SVG)
 plotResults (AnalysisResults fn results) =
     fmap combinePlotsVert $
       case fn of
-        NumWounds      ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
-        NumWoundsMax   ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
-        WoundingSummary      -> error "WoundingSummary is not supported with the Chart-diagrams backend"
+        NumWounds       ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
+        NumWoundsMax    ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
+        WoundingSummary _     -> error "WoundingSummary is not supported with the Chart-diagrams backend"
 
         SlainModels    ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wholly slain models") ptype results
         SlainModelsInt ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "slain models")        ptype results
-        SlainSummary         -> error "SlainSummary is not supported with the Chart-diagrams backend"
+        SlainSummary   _     -> error "SlainSummary is not supported with the Chart-diagrams backend"
 
         ProbKill             ->
             case analysisBarPlot "Kill probability (%)" results of
@@ -197,9 +198,9 @@ plotResults (AnalysisResults fn results) =
             case analysisBarPlot "Kill probability (%)" results of
               (Dict, layout) -> renderLayouts [layout]
   where
-    xlabel DensityPlot         base = base
-    xlabel DistributionPlot    base = "maximum " ++ base
-    xlabel RevDistributionPlot base = "minimum " ++ base
+    xlabel PlotDF   base = base
+    xlabel PlotCDF  base = "maximum " ++ base
+    xlabel PlotCCDF base = "minimum " ++ base
 
 
 

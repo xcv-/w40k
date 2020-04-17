@@ -32,6 +32,7 @@ module W40K.Core.Prob
   , addImpossibleEvents
   , cdf
   , ccdf
+  , icdf
   , summary
   , summaryInt
   , mean
@@ -267,7 +268,7 @@ ccdf = scanr1 sumEvents . events
   where
     sumEvents (Event a p) (Event a' p') = Event a (p + p')
 
-icdf :: Ord a => Prob a -> [Event a]
+icdf :: Ord a => Prob a -> QQ -> a
 icdf = undefined
 
 summary :: Prob QQ -> IO ()

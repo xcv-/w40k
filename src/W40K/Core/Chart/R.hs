@@ -29,7 +29,7 @@ import qualified H.Prelude as H
 
 import W40K.Core.Chart
 import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone,
-                       events, icdf, cdf, ccdf,
+                       events, cdf, ccdf, icdf,
                        mean, stDev)
 import W40K.Core.Util (capitalize)
 
@@ -92,14 +92,12 @@ tidySummaryTable :: ErrorBarType -> AnalysisResultsTable (Prob QQ) -> R s (SomeS
 tidySummaryTable etype results = do
     df <- tidyResultsTable results $ \i title j legend prob -> do
             let
-              m = mean prob
+              (m, s) = (mean prob, stDev prob)
 
               (confMin, confMax) =
                 case etype of
                   StandardDeviationFactor k -> let sd = stDev prob in (m - k*sd, m + k*sd)
-                  MinCentralProbability p -> (idf prob (1/2 - p/2), idf prob (1-p)
-              (m, s) = (mean prob, stDev prob)
-              (confMin, confMax) = (m - s, m + s)
+                  MinCentralProbability p -> (icdf prob (1/2 - p/2), icdf prob (1-p))
 
             [r|
                 tibble(
@@ -246,7 +244,7 @@ probAnalysisChart (capitalize -> xlabel) ptype results = do
 
       df_hs %>%
         ggplot(aes(x=event, y=prob, group=legend_idx, color=legend)) +
-          geom_line(size=0.4) +
+          geom_step(size=0.4) +
           geom_point(size=0.3) +
           labs(
             x = xlabel_hs,

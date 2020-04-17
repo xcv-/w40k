@@ -11,7 +11,7 @@ import System.FilePath ((</>), (<.>))
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
-import W40K.Core.Chart (AnalysisConfig(..), AnalysisConfigGroup(..), AnalysisOrder(..), ProbPlotType(..), AnalysisFn(..))
+import W40K.Core.Chart (AnalysisConfig(..), AnalysisConfigGroup(..), AnalysisOrder(..), ErrorBarType(..), ProbPlotType(..), AnalysisFn(..))
 import qualified W40K.Core.Chart.R as R
 import W40K.Core.Mechanics
 import W40K.Core.Psychic
@@ -113,7 +113,7 @@ allCombinations bdtb fn targets =
             targets
         ]
     , AnalysisConfigGroup "GMNDK"
-        [ AnalysisConfig ByTarget WoundingSummary
+        [ AnalysisConfig ByTarget (WoundingSummary (StandardDeviationFactor 1))
             (f
               [ gmndk
                   & turnShooting %~ with moving
@@ -139,7 +139,7 @@ allCombinations bdtb fn targets =
 
 testMEQ =
     runTests "Marines" $
-      allCombinations False SlainSummary targets
+      allCombinations False (SlainSummary (StandardDeviationFactor 1)) targets
   where
     targets =
       [ meq
@@ -150,7 +150,7 @@ testMEQ =
 
 testRubrics =
     runTests "Rubrics" $
-      allCombinations False SlainSummary targets
+      allCombinations False (SlainSummary (StandardDeviationFactor 1)) targets
   where
     targets =
       [ TS.rubricModel
@@ -161,7 +161,7 @@ testRubrics =
 
 testToughness7 =
     runTests "Toughness 7" $
-      allCombinations False WoundingSummary targets
+      allCombinations False (WoundingSummary (StandardDeviationFactor 1)) targets
   where
     targets =
       [ rhino
@@ -172,7 +172,7 @@ testToughness7 =
 
 testToughness7_bringDownTheBeast =
     runTests "Toughness 7 (Bring Down the Beast)" $
-      allCombinations True WoundingSummary targets
+      allCombinations True (WoundingSummary (StandardDeviationFactor 1)) targets
   where
     targets =
       [ rhino
@@ -181,7 +181,7 @@ testToughness7_bringDownTheBeast =
 
 testToughness8 =
     runTests "Toughness 8" $
-      allCombinations False WoundingSummary targets
+      allCombinations False (WoundingSummary (StandardDeviationFactor 1)) targets
   where
     targets =
       [ SM.leviathanDreadnought
@@ -191,7 +191,7 @@ testToughness8 =
 
 testToughness8_bringDownTheBeast =
     runTests "Toughness 8  (Bring Down the Beast)" $
-      allCombinations True WoundingSummary targets
+      allCombinations True (WoundingSummary (StandardDeviationFactor 1)) targets
   where
     targets =
       [ SM.leviathanDreadnought
