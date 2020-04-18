@@ -321,6 +321,12 @@ d3 = uniformly [1..3]
 d6 :: Prob Int
 d6 = uniformly [1..6]
 
+sorted2d6 :: Prob (Int, Int)
+sorted2d6 = do
+    a <- d6
+    b <- d6
+    return (min a b, max a b)
+
 d6rr1 :: Prob Int
 d6rr1 = do
     r <- d6
@@ -382,7 +388,7 @@ data ChargeRerolls = NoChargeReroll | RerollChargeOneDie | RerollChargeAllDice |
 
 chargeRoll :: ChargeRerolls -> Int -> Prob Bool
 chargeRoll rr minRoll = do
-  [a,b] <- fmapProb sort $ sequence [d6,d6]
+  (a, b) <- sorted2d6
   let dist = a + b
 
   if dist >= minRoll then
