@@ -32,7 +32,6 @@ module W40K.Core.Prob
   , addImpossibleEvents
   , cdf
   , ccdf
-  , icdf
   , summary
   , summaryInt
   , mean
@@ -95,12 +94,12 @@ traceLength :: [a] -> [a]
 traceLength as = trace (show (length as)) as
 
 traceEvents :: Show a => Prob a -> Prob a
-traceEvents prob@(Prob es) =
-    trace (show (events prob)) prob
+traceEvents df@(Prob es) =
+    trace (show (events df)) df
 
 traceNumEvents :: Prob a -> Prob a
-traceNumEvents prob@(Prob es) =
-    trace (show (length (events prob))) prob
+traceNumEvents df@(Prob es) =
+    trace (show (length (events df))) df
 
 fmapProb :: Ord b => (a -> b) -> Prob a -> Prob b
 fmapProb f (Prob evts) = Prob (SortedList.map (mapEvent f) evts)
@@ -156,10 +155,10 @@ probTrue prob =
         _                             -> error ("unnormalized Prob!" ++ show prob)
 
 probFalse :: Prob Bool -> QQ
-probFalse prob = 1 - probTrue prob
+probFalse df = 1 - probTrue df
 
 probOf :: (a -> Bool) -> Prob a -> QQ
-probOf test prob = sum [p | Event a p <- events prob, test a]
+probOf test df = sum [p | Event a p <- events df, test a]
 
 given :: (a -> Bool) -> Prob a -> Prob a
 given hyp prob =
@@ -268,9 +267,6 @@ ccdf = scanr1 sumEvents . events
   where
     sumEvents (Event a p) (Event a' p') = Event a (p + p')
 
-icdf :: Ord a => Prob a -> QQ -> a
-icdf = undefined
-
 summary :: Prob QQ -> IO ()
 summary p =
   let mu    = "µ=" ++ show (realToFrac (mean p) :: Double)
@@ -282,13 +278,13 @@ summaryInt :: Prob Int -> IO ()
 summaryInt = summary . fmap fromIntegral
 
 mean :: Prob QQ -> QQ
-mean prob = sum [k * p | Event k p <- events prob]
+mean df = sum [k * p | Event k p <- events df]
 
 variance :: Prob QQ -> QQ
-variance prob = sum [k^2 * p | Event k p <- events prob] - mean prob^2
+variance df = sum [k^2 * p | Event k p <- events df] - mean df^2
 
 stDev :: Prob QQ -> QQ
-stDev prob = sqrt (variance prob)
+stDev df = sqrt (variance df)
 
 maxEvent :: Ord a => Prob a -> a
-maxEvent x = maximum [a | Event a _ <- events x]
+maxEvent df = maximum [a | Event a _ <- events df]
