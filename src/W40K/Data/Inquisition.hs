@@ -4,8 +4,6 @@ import Prelude hiding (Functor(..), Monad(..))
 
 import Control.Lens
 
-import W40K.Core.ConstrMonad
-import W40K.Core.Prob
 import W40K.Core.Mechanics
 
 import W40K.Data.Common
@@ -18,10 +16,12 @@ data Quarry = OrdoMalleus | OrdoHereticus | OrdoXenos | OrdoSpecialist
     deriving (Eq, Ord, Show)
 
 quarryBonus :: Quarry -> Model -> Model
-quarryBonus OrdoMalleus    = (model_mods.mod_rrtohit   <>~ RerollFailed)
-                           . (model_mods.mod_rrtowound <>~ RerollFailed)
-quarryBonus OrdoXenos      = (model_mods.mod_rrtohit   <>~ RerollOnes)
-                           . (model_mods.mod_rrtowound <>~ RerollOnes)
+quarryBonus OrdoMalleus    = stack [ model_mods.mod_rrtohit   <>~ RerollFailed
+                                   , model_mods.mod_rrtowound <>~ RerollFailed
+                                   ]
+quarryBonus OrdoXenos      = stack [ model_mods.mod_rrtohit   <>~ RerollFailed
+                                   , model_mods.mod_rrtowound <>~ RerollFailed
+                                   ]
 quarryBonus OrdoHereticus  = quarryBonus OrdoMalleus
 quarryBonus OrdoSpecialist = quarryBonus OrdoXenos
 

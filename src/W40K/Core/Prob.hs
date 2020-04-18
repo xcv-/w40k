@@ -30,8 +30,8 @@ module W40K.Core.Prob
   , foldIID
   , sumIID
   , addImpossibleEvents
-  , distribution
-  , revDistribution
+  , cdf
+  , ccdf
   , summary
   , summaryInt
   , mean
@@ -41,15 +41,11 @@ module W40K.Core.Prob
   ) where
 
 import Prelude hiding (Functor(..), Applicative(..), Monad(..))
-import GHC.Exts (IsList(..))
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.ST (ST, runST)
 
-import Data.Coerce (coerce)
-import Data.List (foldl', sort, sortBy, span)
-import Data.MemoTrie (memo, memo2)
-import Data.Monoid (Sum(..))
+import Data.List (foldl', sort)
+import Data.MemoTrie (memo)
 
 import Numeric.SpecFunctions (choose)
 
@@ -94,12 +90,12 @@ traceLength :: [a] -> [a]
 traceLength as = trace (show (length as)) as
 
 traceEvents :: Show a => Prob a -> Prob a
-traceEvents prob@(Prob es) =
-    trace (show (events prob)) prob
+traceEvents df@(Prob _) =
+    trace (show (events df)) df
 
 traceNumEvents :: Prob a -> Prob a
-traceNumEvents prob@(Prob es) =
-    trace (show (length (events prob))) prob
+traceNumEvents df@(Prob _) =
+    trace (show (length (events df))) df
 
 fmapProb :: Ord b => (a -> b) -> Prob a -> Prob b
 fmapProb f (Prob evts) = Prob (SortedList.map (mapEvent f) evts)
@@ -155,10 +151,10 @@ probTrue prob =
         _                             -> error ("unnormalized Prob!" ++ show prob)
 
 probFalse :: Prob Bool -> QQ
-probFalse prob = 1 - probTrue prob
+probFalse df = 1 - probTrue df
 
 probOf :: (a -> Bool) -> Prob a -> QQ
-probOf test prob = sum [p | Event a p <- events prob, test a]
+probOf test df = sum [p | Event a p <- events df, test a]
 
 given :: (a -> Bool) -> Prob a -> Prob a
 given hyp prob =
@@ -192,7 +188,7 @@ binomialMemo p = memo $ \n ->
     binomProbOf n p k
       | k < 0 || k > n = 0
       | n == 0         = 1
-      | otherwise      = realToFrac (choose n k) * p^k * (1-p)^fromIntegral (n-k)
+      | otherwise      = realToFrac (choose n k) * p^k * (1-p)^(n-k)
 
 binomial23 :: Int -> Prob Int
 binomial23 = binomialMemo (2/3)
@@ -222,12 +218,12 @@ sumProbs (p:ps) = foldlProbs' (+) p ps
 {-# specialize sumProbs :: [Prob Int] -> Prob Int #-}
 
 foldAssocIID :: (Ord a) => (a -> a -> a) -> a -> Int -> Prob a -> Prob a
-foldAssocIID f z 0 _ = return z
+foldAssocIID _ z 0 _ = return z
 foldAssocIID f z n p
   | n < 0     = error "foldAssocIID: n must be >= 0"
   | otherwise = noCheck f z n p
   where
-    noCheck f _ 1 p = p
+    noCheck _ _ 1 p = p
     noCheck f z n p
       | n `mod` 2 == 0 = twiceHalf
       | otherwise      = liftA2 f p twiceHalf
@@ -257,15 +253,15 @@ addImpossibleEvents prob =
       | a <  a' = e : merge es ees'
       | a >  a' = e' : merge ees es'
 
-distribution :: Ord a => Prob a -> [Event a]
-distribution = scanl1 sumEvents . events
+cdf :: Ord a => Prob a -> [Event a]
+cdf = scanl1 sumEvents . events
   where
-    sumEvents (Event a p) (Event a' p') = Event a' (p + p')
+    sumEvents (Event _ p) (Event a p') = Event a (p + p')
 
-revDistribution :: Ord a => Prob a -> [Event a]
-revDistribution = scanr1 sumEvents . events
+ccdf :: Ord a => Prob a -> [Event a]
+ccdf = scanr1 sumEvents . events
   where
-    sumEvents (Event a p) (Event a' p') = Event a (p + p')
+    sumEvents (Event a p) (Event _ p') = Event a (p + p')
 
 summary :: Prob QQ -> IO ()
 summary p =
@@ -278,13 +274,15 @@ summaryInt :: Prob Int -> IO ()
 summaryInt = summary . fmap fromIntegral
 
 mean :: Prob QQ -> QQ
-mean prob = sum [k * p | Event k p <- events prob]
+mean df = sum [k * p | Event k p <- events df]
 
 variance :: Prob QQ -> QQ
-variance prob = sum [k^2 * p | Event k p <- events prob] - mean prob^2
+variance df = sum [squared k * p | Event k p <- events df] - squared (mean df)
+  where
+    squared x = x*x
 
 stDev :: Prob QQ -> QQ
-stDev prob = sqrt (variance prob)
+stDev df = sqrt (variance df)
 
 maxEvent :: Ord a => Prob a -> a
-maxEvent x = maximum [a | Event a _ <- events x]
+maxEvent df = maximum [a | Event a _ <- events df]

@@ -6,6 +6,7 @@
 {-# language TypeFamilies #-}
 {-# language UndecidableInstances #-}
 module W40K.Core.Chart.Chart
+  {-# deprecated "Use W40K.Core.Chart.R instead" #-}
   ( plotResults
   , analyze
   , analyzeAll
@@ -21,9 +22,7 @@ import Data.Constraint (Dict(..))
 import Data.Reflection (Given(..), give)
 
 import Control.Arrow (second)
-import Control.Monad (forM_, (<=<))
-import Control.Monad.State (evalState, evalStateT, execStateT)
-import Control.DeepSeq (NFData, force)
+import Control.Monad ((<=<))
 
 import Diagrams.Prelude hiding (trace)
 import Diagrams.Backend.SVG         (renderSVG)
@@ -34,7 +33,7 @@ import qualified Graphics.Rendering.Chart                  as Chart
 import qualified Graphics.Rendering.Chart.Backend.Diagrams as ChartD
 
 import W40K.Core.Chart
-import W40K.Core.Prob (Event(..), Prob, QQ, events, distribution, revDistribution)
+import W40K.Core.Prob (Event(..), Prob, QQ, events, cdf, ccdf)
 import W40K.Core.Util (capitalize)
 
 
@@ -64,8 +63,8 @@ eventChart title relevantEvts evts =
       let (Event a _) = last relevantEvts
       in a
 
-densityChart :: Chart.PlotValue a => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
-densityChart title prob = eventChart title (relevantEvents dens) dens
+chartDF :: Chart.PlotValue a => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+chartDF title prob = eventChart title (relevantEvents dens) dens
   where
     dens = events prob
 
@@ -76,21 +75,21 @@ densityChart title prob = eventChart title (relevantEvents dens) dens
             evts' -> evts'
 
     takeUntilAccumPercent :: Double -> [Event a] -> [Event a]
-    takeUntilAccumPercent !q []                   = []
+    takeUntilAccumPercent !_ []                   = []
     takeUntilAccumPercent !q (e@(Event _ p) : es)
       | q <= 0    = []
       | otherwise = e : takeUntilAccumPercent (q - p) es
 
-distributionChart :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
-distributionChart title prob = eventChart title (relevantEvents dist) dist
+chartCDF :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+chartCDF title prob = eventChart title (relevantEvents dist) dist
   where
-    dist = distribution prob
+    dist = cdf prob
     relevantEvents = takeWhile (\(Event _ p) -> p <= 0.99)
 
-revDistributionChart :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
-revDistributionChart title prob = eventChart title (relevantEvents revDist) revDist
+chartCCDF :: (Ord a, Chart.PlotValue a) => String -> Prob a -> (a, Chart.PlotLines a Chart.Percent)
+chartCCDF title prob = eventChart title (relevantEvents revDist) revDist
   where
-    revDist = revDistribution prob
+    revDist = ccdf prob
     relevantEvents = takeWhile (\(Event _ p) -> p >= 1 - 0.99)
 
 probAnalysisChart :: (Ord a, Chart.PlotValue a) => String -> ProbPlotType -> AnalysisResultsTable (Prob a) -> [Chart.Layout a Chart.Percent]
@@ -99,11 +98,9 @@ probAnalysisChart xlabel plotType =
     . uniformLimits
     . map (_2.mapped %~ uncurry (chartFn plotType))
   where
-    mb << ma = ma >> mb
-
-    chartFn DensityPlot         = densityChart
-    chartFn DistributionPlot    = distributionChart
-    chartFn RevDistributionPlot = revDistributionChart
+    chartFn PlotDF   = chartDF
+    chartFn PlotCDF  = chartCDF
+    chartFn PlotCCDF = chartCCDF
 
     buildLayout :: Chart.PlotValue a => String -> [Chart.PlotLines a Chart.Percent] -> Chart.Layout a Chart.Percent
     buildLayout title linePlots = def
@@ -130,7 +127,7 @@ probAnalysisChart xlabel plotType =
                   in  ls & mapped._2.mapped %~ \(_,pl) ->
                         pl & Chart.plot_lines_values . mapped %~ nonEmptyTakeWhile (\(a',_) -> a' <= a)
 
-newtype BarPlotIndex = BarPlotIndex { getBarPlotIndex :: Chart.PlotIndex }
+newtype BarPlotIndex = BarPlotIndex Chart.PlotIndex
     deriving (Eq, Ord)
 
 instance Given [String] => Chart.PlotValue BarPlotIndex where
@@ -182,9 +179,9 @@ plotResults :: AnalysisResults -> IO (Diagram SVG)
 plotResults (AnalysisResults fn results) =
     fmap combinePlotsVert $
       case fn of
-        NumWounds      ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
-        NumWoundsMax   ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
-        WoundingSummary      -> error "WoundingSummary is not supported with the Chart-diagrams backend"
+        NumWounds       ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
+        NumWoundsMax    ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wounds")              ptype results
+        WoundingSummary       -> error "WoundingSummary is not supported with the Chart-diagrams backend"
 
         SlainModels    ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "wholly slain models") ptype results
         SlainModelsInt ptype -> renderLayouts $ probAnalysisChart (xlabel ptype "slain models")        ptype results
@@ -197,9 +194,9 @@ plotResults (AnalysisResults fn results) =
             case analysisBarPlot "Kill probability (%)" results of
               (Dict, layout) -> renderLayouts [layout]
   where
-    xlabel DensityPlot         base = base
-    xlabel DistributionPlot    base = "maximum " ++ base
-    xlabel RevDistributionPlot base = "minimum " ++ base
+    xlabel PlotDF   base = base
+    xlabel PlotCDF  base = "maximum " ++ base
+    xlabel PlotCCDF base = "minimum " ++ base
 
 
 

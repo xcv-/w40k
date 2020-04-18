@@ -4,6 +4,7 @@
 {-# language FlexibleContexts #-}
 {-# language QuasiQuotes #-}
 {-# language TypeApplications #-}
+{-# language TypeOperators #-}
 {-# language ViewPatterns #-}
 module W40K.Core.Chart.R
   ( analysisToFile
@@ -12,24 +13,21 @@ module W40K.Core.Chart.R
 
 import GHC.Exts (IsList(..))
 import Control.Monad (forM)
-import Control.Lens (over, _head)
 
-import Data.Char (toUpper)
 import Data.Int (Int32)
 import Data.Functor (void)
-import Data.Singletons (SingI(..))
 
-import Language.R (R, SEXP, SomeSEXP(..))
+import Language.R (R, SEXP, SomeSEXP)
 import Language.R.QQ (r)
 
-import qualified Foreign.R       as FR
-import qualified Language.R      as R
-import qualified Language.R.HExp as HExp
-import qualified H.Prelude as H
+import qualified Control.Memory.Region as M
+import qualified Foreign.R             as FR
+import qualified Language.R            as R
+import qualified Data.Vector.SEXP      as S
 
 import W40K.Core.Chart
 import W40K.Core.Prob (Event(..), Prob, QQ, fmapProbMonotone,
-                       events, distribution, revDistribution,
+                       events, cdf, ccdf,
                        mean, stDev)
 import W40K.Core.Util (capitalize)
 
@@ -48,8 +46,16 @@ toInt32 = fromIntegral
 toDouble :: Int -> Double
 toDouble = fromIntegral
 
-toRList :: [SomeSEXP s] -> R s (SomeSEXP s)
-toRList xs = fmap R.SomeSEXP $ HExp.unhexp $ HExp.Vector (toInt32 $ length xs) (fromList xs)
+releaseSomeSEXP :: t M.<= s => SomeSEXP s -> SomeSEXP t
+releaseSomeSEXP (R.SomeSEXP sexp) = R.SomeSEXP (FR.release sexp)
+
+toRList :: [SomeSEXP s] -> R s (SEXP s 'FR.Vector)
+toRList somesexps =
+    let
+      vec :: S.Vector 'FR.Vector (SomeSEXP M.Void)
+      vec = fromList (map releaseSomeSEXP somesexps)
+    in
+      R.mkSEXP vec
 
 
 -- main logic
@@ -90,16 +96,20 @@ tidyNumericTable results = do
 
 tidySummaryTable :: AnalysisResultsTable (Prob QQ) -> R s (SomeSEXP s)
 tidySummaryTable results = do
-    df <- tidyResultsTable results $ \i title j legend prob ->
-            let (m, s) = (mean prob, stDev prob)
-            in [r|
+    df <- tidyResultsTable results $ \i title j legend df -> do
+            let
+              (m, sd) = (mean df, stDev df)
+              (errMin, errMax) = (m-sd, m+sd)
+
+            [r|
                 tibble(
                   title_idx  = i_hs,
                   title      = title_hs,
                   legend_idx = j_hs,
                   legend     = legend_hs,
                   mean       = m_hs,
-                  std        = s_hs)
+                  err_min    = errMin_hs,
+                  err_max    = errMax_hs)
             |]
     [r|
       df_hs %>%
@@ -109,18 +119,20 @@ tidySummaryTable results = do
       |]
 
 
-tidyProbResultsTable :: (Ord a, R.Literal [a] ty) => ProbPlotType -> AnalysisResultsTable (Prob a) -> R s (SomeSEXP s)
+tidyProbResultsTable :: ProbPlotType -> AnalysisResultsTable (Prob QQ) -> R s (SomeSEXP s)
 tidyProbResultsTable ptype results = do
-    df <- tidyResultsTable results $ \i title j legend prob ->
-            let (as, ps) = probPoints prob
+    df <- tidyResultsTable results $ \i title j legend df ->
+            let (as, ps) = probPoints df
+                m        = mean df
             in [r|
                 tibble(
                   title_idx  = i_hs,
                   title      = title_hs,
                   legend_idx = j_hs,
                   legend     = legend_hs,
-                  prob       = ps_hs,
-                  event      = as_hs)
+                  prob       = rev(ps_hs), # see the analysisSummaryBarPlot, must be reversed
+                  event      = rev(as_hs), # due to the order in which bars are overlapped
+                  mean       = m_hs)
               |]
     [r|
       df_hs %>%
@@ -133,9 +145,9 @@ tidyProbResultsTable ptype results = do
     probPoints :: Ord a => Prob a -> ([a], [QQ])
     probPoints =
         case ptype of
-          DensityPlot         -> unzipEvents . safeTakeUntilAccumPercent 0.99 . events
-          DistributionPlot    -> unzipEvents . takeWhile (\(Event _ p) -> p <=   0.99) . distribution
-          RevDistributionPlot -> unzipEvents . takeWhile (\(Event _ p) -> p >= 1-0.99) . revDistribution
+          PlotDF   -> unzipEvents . safeTakeUntilAccumPercent 0.99 . events
+          PlotCDF  -> unzipEvents . takeWhile (\(Event _ p) -> p <=   0.99) . cdf
+          PlotCCDF -> unzipEvents . takeWhile (\(Event _ p) -> p >= 1-0.99) . ccdf
 
     unzipEvents :: [Event a] -> ([a], [QQ])
     unzipEvents es = unzip [(a, p) | Event a p <- es]
@@ -147,7 +159,7 @@ tidyProbResultsTable ptype results = do
           es' -> es'
 
     takeUntilAccumPercent :: QQ -> [Event a] -> [Event a]
-    takeUntilAccumPercent !q []                   = []
+    takeUntilAccumPercent !_ []                   = []
     takeUntilAccumPercent !q (e@(Event _ p) : es)
       | q <= 0    = []
       | otherwise = e : takeUntilAccumPercent (q - p) es
@@ -204,7 +216,7 @@ analysisSummaryErrBarPlot (capitalize -> ylabel) results = do
       names(facet_names) = df_hs$title_idx
 
       df_hs %>%
-        ggplot(aes(x=legend, y=mean, ymin=mean-std, ymax=mean+std, fill=legend)) +
+        ggplot(aes(x=legend, y=mean, ymin=err_min, ymax=err_max, fill=legend)) +
           geom_col(position=position_dodge(), width=0.8) +
           geom_errorbar(position=position_dodge(), width=0.5, size=0.2) +
           labs(
@@ -223,12 +235,73 @@ analysisSummaryErrBarPlot (capitalize -> ylabel) results = do
             nrow = 1,
             labeller = labeller(title_idx=facet_names))
       |]
+
     return (GGPlot obj 12 7)
 
 
-probAnalysisChart :: (Ord a, R.Literal [a] ty) => String -> ProbPlotType -> AnalysisResultsTable (Prob a) -> R s (GGPlot s)
+analysisSummaryBarPlot :: String -> AnalysisResultsTable (Prob QQ) -> R s (GGPlot s)
+analysisSummaryBarPlot (capitalize -> ylabel) results = do
+    df <- tidyProbResultsTable PlotCCDF results
+
+    obj <- [r|
+      facet_names = df_hs$title
+      names(facet_names) = df_hs$title_idx
+
+      df_hs %>%
+        ggplot(aes(x=legend)) +
+          geom_col(
+              aes(y=event, fill=prob/100),
+              position = 'identity',
+              width = 0.8) +
+          scale_fill_gradientn(
+              colours = rainbow(4),
+              breaks = c(0, 0.25, 0.5, 0.75, 1),
+              labels = c('0%', '25%', '50%', '75%', '100%')) +
+          geom_point(
+              aes(y=mean, colour=legend),
+              fill = 'white',
+              shape = 23,
+              size = 1.5) +
+          labs(
+            y = ylabel_hs) +
+          theme(
+            text = element_text(size=6),
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = 'bottom') +
+          guides(
+            fill = guide_colourbar(barwidth=0.8, barheight=3, draw.llow=TRUE, direction='vertical'),
+            color = guide_legend(nrow=3)) +
+          facet_wrap(
+            facets = vars(title_idx),
+            nrow = 1,
+            labeller = labeller(title_idx=facet_names))
+      |]
+
+    return (GGPlot obj 12 8)
+
+
+probAnalysisChart :: String -> ProbPlotType -> AnalysisResultsTable (Prob QQ) -> R s (GGPlot s)
 probAnalysisChart (capitalize -> xlabel) ptype results = do
     df <- tidyProbResultsTable ptype results
+
+    geom <-
+      case ptype of
+        PlotDF   -> [r| list(
+            geom_line(size=0.4, alpha=0.6),
+            geom_point(size=0.3)
+          ) |]
+
+        PlotCDF  -> [r| list(
+            geom_step(size=0.4, alpha=0.6, direction='hv'),
+            geom_point(size=0.3)
+          ) |]
+        PlotCCDF -> [r| list(
+            geom_step(size=0.4, alpha=0.6, direction='vh'),
+            geom_point(size=0.3)
+          ) |]
 
     obj <- [r|
       facet_names = df_hs$title
@@ -236,8 +309,7 @@ probAnalysisChart (capitalize -> xlabel) ptype results = do
 
       df_hs %>%
         ggplot(aes(x=event, y=prob, group=legend_idx, color=legend)) +
-          geom_line(size=0.4) +
-          geom_point(size=0.3) +
+          geom_hs +
           labs(
             x = xlabel_hs,
             y = 'Probability (%)') +
@@ -255,29 +327,30 @@ probAnalysisChart (capitalize -> xlabel) ptype results = do
             labeller = labeller(title_idx=facet_names)) +
           scale_x_continuous(breaks = function(x) seq(ceiling(x[1]), floor(x[2]), by = 1))
       |]
+
     return (GGPlot obj 12 (3 + 6*length results))
 
 
 plotResults :: AnalysisResults -> R s (GGPlot s)
 plotResults (AnalysisResults fn results) =
     case fn of
-      NumWounds      ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
-      NumWoundsMax   ptype -> probAnalysisChart (xlabel ptype "wounds")              ptype (int32results results)
-      WoundingSummary      -> analysisSummaryErrBarPlot "Average wounds ± std"             (floatResults results)
+      NumWounds       ptype -> probAnalysisChart (xlabel ptype "wounds")  ptype (floatResults results)
+      NumWoundsMax    ptype -> probAnalysisChart (xlabel ptype "wounds")  ptype (floatResults results)
+      WoundingSummary       -> analysisSummaryBarPlot "Average wounds"          (floatResults results)
 
-      SlainModelsInt ptype -> probAnalysisChart (xlabel ptype "wholly slain models") ptype (int32results results)
+      SlainModelsInt ptype -> probAnalysisChart (xlabel ptype "wholly slain models") ptype (floatResults results)
       SlainModels    ptype -> probAnalysisChart (xlabel ptype "slain models")        ptype results
-      SlainSummary         -> analysisSummaryErrBarPlot "Average killed ± std"             results
+      SlainSummary         -> analysisSummaryBarPlot "Average killed"                      results
 
       ProbKill             -> analysisProbBarPlot "Kill probability (%)" results
       ProbKillOne          -> analysisProbBarPlot "Kill probability (%)" results
   where
     floatResults = mapResultsTable (fmapProbMonotone toDouble)
-    int32results = mapResultsTable (fmapProbMonotone toInt32)
 
-    xlabel DensityPlot         base = base
-    xlabel DistributionPlot    base = "maximum " ++ base
-    xlabel RevDistributionPlot base = "minimum " ++ base
+    xlabel PlotDF   base = base
+    xlabel PlotCDF  base = "maximum " ++ base
+    xlabel PlotCCDF base = "minimum " ++ base
+
 
 analyze :: AnalysisConfig -> R s (AnalysisResults, GGPlot s)
 analyze (AnalysisConfig order fn turns tgts) =

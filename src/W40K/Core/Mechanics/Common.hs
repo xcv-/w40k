@@ -5,14 +5,11 @@ module W40K.Core.Mechanics.Common where
 
 import Prelude hiding (Functor(..), Monad(..), sequence)
 
-import Data.List (sort)
 import Data.Monoid ((<>))
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import Control.Lens
-
-import Debug.Trace
 
 
 data CombatType = Melee | Ranged deriving Eq
@@ -30,7 +27,7 @@ modifyRoll :: SkillRoll -> Int -> SkillRoll
 modifyRoll (SkillRoll k m) m' = SkillRoll k (m + m')
 
 modifiedRoll :: SkillRoll -> Int
-modifiedRoll (SkillRoll 1 m) = 1
+modifiedRoll (SkillRoll 1 _) = 1
 modifiedRoll (SkillRoll k m) = k+m
 
 
@@ -44,7 +41,7 @@ instance Monoid IntMod where
 
 applyIntMod :: IntMod -> Int -> Int
 applyIntMod NoMod        n = n
-applyIntMod (ConstVal k) n = k
+applyIntMod (ConstVal k) _ = k
 applyIntMod (Add k)      n = n + k
 applyIntMod (Times k)    n = n * k
 applyIntMod Half         n = (n+1) `div` 2
@@ -321,6 +318,12 @@ d3 = uniformly [1..3]
 d6 :: Prob Int
 d6 = uniformly [1..6]
 
+sorted2d6 :: Prob (Int, Int)
+sorted2d6 = do
+    a <- d6
+    b <- d6
+    return (min a b, max a b)
+
 d6rr1 :: Prob Int
 d6rr1 = do
     r <- d6
@@ -348,7 +351,7 @@ roll rr d noModPass modPass = do
         RerollOnes   | k == 1            -> True
         RerollFailed | not (noModPass k) -> True
         RerollAll                        -> True
-        otherwise                        -> False
+        _                                -> False
 
 
 skillRoll :: Reroll -> Int -> Int -> Int -> Prob SkillRoll
@@ -375,14 +378,14 @@ skillRoll rr noModSkill skill mods = do
           | k < noModSkill    -> True
           | k < skill         -> True
         RerollAll             -> True
-        otherwise             -> False
+        _                     -> False
 
 
 data ChargeRerolls = NoChargeReroll | RerollChargeOneDie | RerollChargeAllDice | RerollChargeAnyDice
 
 chargeRoll :: ChargeRerolls -> Int -> Prob Bool
 chargeRoll rr minRoll = do
-  [a,b] <- fmapProb sort $ sequence [d6,d6]
+  (a, b) <- sorted2d6
   let dist = a + b
 
   if dist >= minRoll then

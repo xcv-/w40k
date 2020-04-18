@@ -7,10 +7,10 @@
 {-# language RebindableSyntax #-}
 module W40K.Core.ConstrMonad where
 
-import Prelude hiding (Functor(..), Applicative(..), Monad(..), liftA2, sequence, (=<<))
+import Prelude hiding (Functor(..), Applicative(..), Monad(..), sequence, (=<<))
 import qualified Prelude
 
-import Control.Monad.ST (ST, runST)
+import Control.Monad.ST (ST)
 
 
 class NoConstr a
@@ -78,7 +78,7 @@ infixr 1 <<
 {-# inline (<<) #-}
 
 forM :: (ConstrMonad c m, c b, c [b], c (m [b])) => [a] -> (a -> m b) -> m [b]
-forM []     f = return []
+forM []     _ = return []
 forM (a:as) f = do
     b  <- f a
     bs <- forM as f
@@ -90,5 +90,5 @@ sequence mas = forM mas id
 {-# inline sequence #-}
 
 foldlM' :: (ConstrMonad c m, c a, c b) => (b -> a -> m b) -> b -> [a] -> m b
-foldlM' f !z []     = return z
+foldlM' _ !z []     = return z
 foldlM' f !z (x:xs) = f z x >>= \z' -> foldlM' f z' xs

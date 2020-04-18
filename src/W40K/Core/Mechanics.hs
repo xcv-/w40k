@@ -54,9 +54,7 @@ import qualified Prelude
 
 import Control.Lens
 
-import Data.Function    (on)
-import Data.List        (foldl', isInfixOf, sortBy)
-import Data.Traversable (for)
+import Data.List        (foldl')
 
 import W40K.Core.SortedList (SortedList, SortedListItem(..))
 import qualified W40K.Core.SortedList as SortedList
@@ -147,7 +145,6 @@ rollToHit src w tgt natt hooks =
           return (base + extra)
   where
     pHit = probHit src w tgt
-    mods = hitMods src w tgt
 
 rollWounds :: IsWeapon w => Model -> w -> Model -> Int -> Prob (TotalWounds Weapon)
 rollWounds src w tgt nhit =
@@ -189,7 +186,6 @@ rollToWound' src w tgt nhit hooks = do
             return extra
   where
     pWound = probWound src w tgt
-    mods = woundMods src w
 
     withMult !n !p = (n, p)
 
@@ -225,8 +221,6 @@ resolveWoundHook src w tgt nsuccesses eff otherHooks =
                              (SortedList.singleton (Wounds (-nsuccesses) (w^.as_weapon)))
       WoundHookModWeapon w' -> do
         return $ TotalWounds mempty (SortedList.singleton (Wounds nsuccesses w'))
-  where
-    pWound = probWound src w tgt
 
 unsavedDamage :: IsWeapon w => Model -> w -> Model -> Prob WeaponTotalDamage
 unsavedDamage src w tgt = do

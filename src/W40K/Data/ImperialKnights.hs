@@ -5,7 +5,6 @@ import Prelude hiding (Functor(..), Monad(..))
 import Control.Lens
 
 import W40K.Core.ConstrMonad
-import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Data.Common
 

@@ -52,20 +52,25 @@ main = do
     testToughness8_bringDownTheBeast
 
 
-stormbolters = eraseTurn emptyTurn
-  & turnName .~ "5 rapid-fire stormbolters"
+stormbolters5 = eraseTurn emptyTurn
+  & turnName .~ "5 rapid-fire stormbolters (psybolt)"
   & turnShooting .~ do
-      with rapidFiring $ GK.terminatorSquad 5 GK.halberd
+      with (GK.psyboltAmmo . rapidFiring) $ GK.terminatorSquad 5 GK.halberd
+
+stormbolters10 = eraseTurn emptyTurn
+  & turnName .~ "10 rapid-fire stormbolters (psybolt)"
+  & turnShooting .~ do
+      with (GK.psyboltAmmo . rapidFiring) $ GK.terminatorSquad 10 GK.halberd
 
 psilencers = eraseTurn emptyTurn
-  & turnName .~ "moving psilencer purgators"
+  & turnName .~ " psilencer purgators"
   & turnShooting .~ do
-      with moving $ GK.purgatorSquad GK.psilencer
+      with id $ GK.purgatorSquad GK.psilencer
 
 psycannons = eraseTurn emptyTurn
-  & turnName .~ "moving psycannon purgators"
+  & turnName .~ " psycannon purgators"
   & turnShooting .~ do
-      with moving $ GK.purgatorSquad GK.psycannon
+      with id $ GK.purgatorSquad GK.psycannon
 
 gmndk = eraseTurn emptyTurn
   & turnName .~ "gmndk"
@@ -73,12 +78,11 @@ gmndk = eraseTurn emptyTurn
       [GK.gmndkWith [GK.gatlingPsilencer, GK.heavyPsycannon] GK.greatsword]
 
 
-psyboltStormbolters = stormbolters & turnShooting %~ with GK.psyboltAmmo  & turnName <>~ " (psybolt)"
 onslaughtPsilencers = psilencers   & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
 onslaughtPsycannons = psycannons   & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
 
 
-baseList = [stormbolters, psyboltStormbolters, psilencers, onslaughtPsilencers, psycannons, onslaughtPsycannons]
+baseList = [stormbolters5, stormbolters10, psilencers, onslaughtPsilencers, psycannons, onslaughtPsycannons]
 inCover m = m & model_save -~ 1 & model_name <>~ " (cover)"
 
 invocationList              = map (turnShooting %~ with GK.invocationOfFocus) baseList
@@ -93,14 +97,14 @@ allCombinations bdtb fn targets =
             (f baseList)
             targets
         ]
-    , AnalysisConfigGroup "Base list with IoF"
-        [ AnalysisConfig ByTarget fn
-            (f invocationList)
-            targets
-        ]
     , AnalysisConfigGroup "Base list with ToC"
         [ AnalysisConfig ByTarget fn
             (f tideList)
+            targets
+        ]
+    , AnalysisConfigGroup "Base list with IoF"
+        [ AnalysisConfig ByTarget fn
+            (f invocationList)
             targets
         ]
     , AnalysisConfigGroup "Base list with IoF+ToC"

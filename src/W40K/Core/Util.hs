@@ -19,8 +19,8 @@ import Data.List (groupBy)
 
 
 whnfItems :: [a] -> ()
-whnfItems []         = ()
-whnfItems aas@(a:as) = a `seq` whnfItems as
+whnfItems []     = ()
+whnfItems (a:as) = a `seq` whnfItems as
 
 seqItems :: [a] -> [a]
 seqItems as = whnfItems as `seq` as

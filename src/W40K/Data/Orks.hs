@@ -3,12 +3,9 @@ module W40K.Data.Orks where
 import Prelude hiding (Functor(..), Monad(..))
 import Control.Lens
 
-import W40K.Core.Prob
 import W40K.Core.Mechanics
-import W40K.Core.Psychic
 
 import W40K.Data.Common
-
 
 
 gorkanaut :: Model

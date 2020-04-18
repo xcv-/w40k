@@ -17,15 +17,14 @@ import Control.DeepSeq (NFData(..))
 import Control.Lens
 import Debug.Trace
 
-import qualified W40K.Core.ConstrMonad as CM
-import W40K.Core.Prob (Prob, QQ, fmapProbMonotone, addImpossibleEvents, mean)
+import W40K.Core.Prob (Prob, QQ {- , addImpossibleEvents -})
 import W40K.Core.Mechanics
 import W40K.Core.Util (whnfItems)
 
 
 data AnalysisOrder = ByAttacker | ByTarget
 
-data ProbPlotType = DensityPlot | DistributionPlot | RevDistributionPlot
+data ProbPlotType = PlotDF | PlotCDF | PlotCCDF
 
 data AnalysisFn tgt r where
     NumWounds       :: IsModel tgt => ProbPlotType -> AnalysisFn tgt        (Prob Int)
@@ -87,12 +86,12 @@ analysisFnTgtName ProbKillOne        = (^.as_model.model_name)
 applyAnalysisFn :: (Ord pr, Ord cr) => AnalysisFn tgt r -> Turn pr cr -> tgt -> r
 applyAnalysisFn fn turn tgt =
     case fn of
-      NumWounds _      -> addImpossibleEvents $ turnNumWounds turn (tgt^.as_model)
-      NumWoundsMax _   -> addImpossibleEvents $ turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
+      NumWounds _      -> {- addImpossibleEvents $ -} turnNumWounds turn (tgt^.as_model)
+      NumWoundsMax _   -> {- addImpossibleEvents $ -} turnNumWoundsMax turn (tgt^.as_model) (tgt^.as_model.model_wnd)
       WoundingSummary  -> turnNumWounds turn (tgt^.as_model)
 
       SlainModels _    -> turnNumSlainModels turn (tgt^.as_model)
-      SlainModelsInt _ -> addImpossibleEvents $ turnNumSlainModelsInt turn (tgt^.as_model)
+      SlainModelsInt _ -> {- addImpossibleEvents $ -} turnNumSlainModelsInt turn (tgt^.as_model)
       SlainSummary     -> turnNumSlainModels turn (tgt^.as_model)
 
       ProbKill         -> turnProbKill turn (fst tgt) (tgt^._2.as_model)
