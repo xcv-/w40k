@@ -41,15 +41,11 @@ module W40K.Core.Prob
   ) where
 
 import Prelude hiding (Functor(..), Applicative(..), Monad(..))
-import GHC.Exts (IsList(..))
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.ST (ST, runST)
 
-import Data.Coerce (coerce)
-import Data.List (foldl', sort, sortBy, span)
-import Data.MemoTrie (memo, memo2)
-import Data.Monoid (Sum(..))
+import Data.List (foldl', sort)
+import Data.MemoTrie (memo)
 
 import Numeric.SpecFunctions (choose)
 
@@ -94,11 +90,11 @@ traceLength :: [a] -> [a]
 traceLength as = trace (show (length as)) as
 
 traceEvents :: Show a => Prob a -> Prob a
-traceEvents df@(Prob es) =
+traceEvents df@(Prob _) =
     trace (show (events df)) df
 
 traceNumEvents :: Prob a -> Prob a
-traceNumEvents df@(Prob es) =
+traceNumEvents df@(Prob _) =
     trace (show (length (events df))) df
 
 fmapProb :: Ord b => (a -> b) -> Prob a -> Prob b
@@ -192,7 +188,7 @@ binomialMemo p = memo $ \n ->
     binomProbOf n p k
       | k < 0 || k > n = 0
       | n == 0         = 1
-      | otherwise      = realToFrac (choose n k) * p^k * (1-p)^fromIntegral (n-k)
+      | otherwise      = realToFrac (choose n k) * p^k * (1-p)^(n-k)
 
 binomial23 :: Int -> Prob Int
 binomial23 = binomialMemo (2/3)
@@ -222,12 +218,12 @@ sumProbs (p:ps) = foldlProbs' (+) p ps
 {-# specialize sumProbs :: [Prob Int] -> Prob Int #-}
 
 foldAssocIID :: (Ord a) => (a -> a -> a) -> a -> Int -> Prob a -> Prob a
-foldAssocIID f z 0 _ = return z
+foldAssocIID _ z 0 _ = return z
 foldAssocIID f z n p
   | n < 0     = error "foldAssocIID: n must be >= 0"
   | otherwise = noCheck f z n p
   where
-    noCheck f _ 1 p = p
+    noCheck _ _ 1 p = p
     noCheck f z n p
       | n `mod` 2 == 0 = twiceHalf
       | otherwise      = liftA2 f p twiceHalf
@@ -260,12 +256,12 @@ addImpossibleEvents prob =
 cdf :: Ord a => Prob a -> [Event a]
 cdf = scanl1 sumEvents . events
   where
-    sumEvents (Event a p) (Event a' p') = Event a' (p + p')
+    sumEvents (Event _ p) (Event a p') = Event a (p + p')
 
 ccdf :: Ord a => Prob a -> [Event a]
 ccdf = scanr1 sumEvents . events
   where
-    sumEvents (Event a p) (Event a' p') = Event a (p + p')
+    sumEvents (Event a p) (Event _ p') = Event a (p + p')
 
 summary :: Prob QQ -> IO ()
 summary p =
@@ -281,7 +277,9 @@ mean :: Prob QQ -> QQ
 mean df = sum [k * p | Event k p <- events df]
 
 variance :: Prob QQ -> QQ
-variance df = sum [k^2 * p | Event k p <- events df] - mean df^2
+variance df = sum [squared k * p | Event k p <- events df] - squared (mean df)
+  where
+    squared x = x*x
 
 stDev :: Prob QQ -> QQ
 stDev df = sqrt (variance df)

@@ -17,8 +17,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Lens
 import Debug.Trace
 
-import qualified W40K.Core.ConstrMonad as CM
-import W40K.Core.Prob (Prob, QQ, fmapProbMonotone, addImpossibleEvents, mean)
+import W40K.Core.Prob (Prob, QQ {- , addImpossibleEvents -})
 import W40K.Core.Mechanics
 import W40K.Core.Util (whnfItems)
 

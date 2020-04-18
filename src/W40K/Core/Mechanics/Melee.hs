@@ -77,7 +77,7 @@ ccHitMods src w tgt =
 
 -- autohit not taken into account because there is no hit roll for auto-hitting weapons (FAQ'd)
 ccDoesHit :: Model -> CCWeapon -> Model -> SkillRoll -> Bool
-ccDoesHit src w _ =
+ccDoesHit src _ _ =
     (>=! src^.model_ws) . modifiedRoll
 
 ccHitRoll :: Model -> CCWeapon -> Model -> Prob SkillRoll

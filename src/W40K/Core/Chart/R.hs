@@ -13,12 +13,9 @@ module W40K.Core.Chart.R
 
 import GHC.Exts (IsList(..))
 import Control.Monad (forM)
-import Control.Lens (over, _head)
 
-import Data.Char (toUpper)
 import Data.Int (Int32)
 import Data.Functor (void)
-import Data.Singletons (SingI(..))
 
 import Language.R (R, SEXP, SomeSEXP)
 import Language.R.QQ (r)
@@ -162,7 +159,7 @@ tidyProbResultsTable ptype results = do
           es' -> es'
 
     takeUntilAccumPercent :: QQ -> [Event a] -> [Event a]
-    takeUntilAccumPercent !q []                   = []
+    takeUntilAccumPercent !_ []                   = []
     takeUntilAccumPercent !q (e@(Event _ p) : es)
       | q <= 0    = []
       | otherwise = e : takeUntilAccumPercent (q - p) es

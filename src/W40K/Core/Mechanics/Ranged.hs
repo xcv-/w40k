@@ -85,7 +85,7 @@ rngHitMods src w tgt =
 
 -- autohit not taken into account because there is no hit roll for auto-hitting weapons (FAQ'd)
 rngDoesHit :: Model -> RngWeapon -> Model -> SkillRoll -> Bool
-rngDoesHit src w _ =
+rngDoesHit src _ _ =
     (>=! src^.model_bs) . modifiedRoll
 
 rngHitRoll :: Model -> RngWeapon -> Model -> Prob SkillRoll

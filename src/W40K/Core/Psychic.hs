@@ -2,7 +2,7 @@
 {-# language TemplateHaskell #-}
 module W40K.Core.Psychic where
 
-import Prelude hiding (Functor(..), Applicative(..), Monad(..), liftA2, sequence, (=<<))
+import Prelude hiding (Functor(..), Applicative(..), Monad(..), sequence, (=<<))
 
 import Data.List (sort)
 import Data.Maybe (isJust)

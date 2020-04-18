@@ -3,12 +3,10 @@
 module W40K.Data.GreyKnights where
 
 import Prelude hiding (Functor(..), Monad(..))
-import Data.Function (on)
-import Data.List (isInfixOf, isPrefixOf, maximumBy, sort)
+import Data.List (isInfixOf, isPrefixOf, sort)
 import Control.Lens
 
 import W40K.Core.ConstrMonad
-import W40K.Core.Prob
 import W40K.Core.Mechanics
 import W40K.Core.Psychic
 

@@ -22,9 +22,7 @@ import Data.Constraint (Dict(..))
 import Data.Reflection (Given(..), give)
 
 import Control.Arrow (second)
-import Control.Monad (forM_, (<=<))
-import Control.Monad.State (evalState, evalStateT, execStateT)
-import Control.DeepSeq (NFData, force)
+import Control.Monad ((<=<))
 
 import Diagrams.Prelude hiding (trace)
 import Diagrams.Backend.SVG         (renderSVG)
@@ -77,7 +75,7 @@ chartDF title prob = eventChart title (relevantEvents dens) dens
             evts' -> evts'
 
     takeUntilAccumPercent :: Double -> [Event a] -> [Event a]
-    takeUntilAccumPercent !q []                   = []
+    takeUntilAccumPercent !_ []                   = []
     takeUntilAccumPercent !q (e@(Event _ p) : es)
       | q <= 0    = []
       | otherwise = e : takeUntilAccumPercent (q - p) es
@@ -100,8 +98,6 @@ probAnalysisChart xlabel plotType =
     . uniformLimits
     . map (_2.mapped %~ uncurry (chartFn plotType))
   where
-    mb << ma = ma >> mb
-
     chartFn PlotDF   = chartDF
     chartFn PlotCDF  = chartCDF
     chartFn PlotCCDF = chartCCDF
@@ -131,7 +127,7 @@ probAnalysisChart xlabel plotType =
                   in  ls & mapped._2.mapped %~ \(_,pl) ->
                         pl & Chart.plot_lines_values . mapped %~ nonEmptyTakeWhile (\(a',_) -> a' <= a)
 
-newtype BarPlotIndex = BarPlotIndex { getBarPlotIndex :: Chart.PlotIndex }
+newtype BarPlotIndex = BarPlotIndex Chart.PlotIndex
     deriving (Eq, Ord)
 
 instance Given [String] => Chart.PlotValue BarPlotIndex where

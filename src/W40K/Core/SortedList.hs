@@ -31,8 +31,6 @@ import Data.List (sortBy)
 import Data.Semigroup (Semigroup(..))
 import Data.List.NonEmpty (NonEmpty(..))
 
-import W40K.Core.Util (seqItems)
-
 
 newtype SortedList a = SortedList [a]
   deriving (Eq, Ord)
@@ -108,7 +106,7 @@ reduceSortedList = coerce (reduce @a)
 
 mergeN :: forall a. SortedListItem a => [[a]] -> [a]
 mergeN []       = []
-mergeN (as:ass) = go as ass
+mergeN (xs:xss) = go xs xss
   where
     go as []             = as
     go as (as':[])       = merge2 as as'
@@ -127,7 +125,7 @@ merge2 aas@(a:as) bbs@(b:bs) =
 
 reduce :: forall a. SortedListItem a => [a] -> [a]
 reduce []     = []
-reduce (a:as) = go a as
+reduce (x:xs) = go x xs
   where
     go a aas =
       case aas of
