@@ -2,6 +2,7 @@ module W40K.Data.ThousandSons where
 
 import Prelude hiding (Functor(..), Monad(..), sequence)
 import Control.Lens
+import Data.List (isInfixOf)
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
@@ -27,6 +28,36 @@ gazeOfMagnus = smite
       if cv >= 10 then two_d6 else d6
   where
     two_d6 = sumProbs [d6, d6]
+
+infernalFusillade :: Modifier
+infernalFusillade =
+    filtered isRubricOrScarab
+    .em_rw
+    .mapped
+    .filtered (\rw -> rw^.rw_class == RapidFire)
+    .rw_shots %~ fmap (*2)
+  where
+    isRubricOrScarab em =
+        isInfixOf "rubric" (em^.em_model.model_name) ||
+        isInfixOf "scarab occult" (em^.em_model.model_name)
+
+
+-- PSYCHIC
+
+ahrimanPsyker :: Psyker
+ahrimanPsyker = defaultPsyker
+  & psyker_cast_mod .~ Add 1
+  & psyker_deny_mod .~ Add 1
+
+
+magnusPsychicAura :: Psyker -> Psyker
+magnusPsychicAura = psyker_cast_roll .~ sequence [d6rr1, d6rr1]
+
+magnusPsyker :: Psyker
+magnusPsyker = defaultPsyker
+  & psyker_cast_mod .~ Add 2
+  & psyker_deny_mod .~ Add 2
+  & magnusPsychicAura
 
 
 -- MODELS
@@ -78,15 +109,6 @@ magnusModel = daemonPrinceModel
   & model_att   .~ 7
   & model_wnd   .~ 18
   & model_name  .~ "magnus the red"
-
-magnusPsychicAura :: Psyker -> Psyker
-magnusPsychicAura = psyker_cast_roll .~ sequence [d6rr1, d6rr1]
-
-magnusPsyker :: Psyker
-magnusPsyker = defaultPsyker
-  & psyker_cast_mod .~ Add 2
-  & psyker_deny_mod .~ Add 2
-  & magnusPsychicAura
 
 
 -- RANGED WEAPONS
@@ -149,7 +171,7 @@ aspiringSorcerer = bolterRubric
   & em_model %~ stack [model_att +~ 1, model_ld +~ 1, model_allIsDust .~ False]
   & em_ccw   .~ forceStave
   & em_rw    .~ [infernoBoltPistol]
-  & em_name  .~ "aspiring sorcerer"
+  & em_name  .~ "rubric aspiring sorcerer"
 
 magnus :: EquippedModel
 magnus = basicEquippedModel magnusModel
@@ -180,3 +202,6 @@ rubricSquad n = aspiringSorcerer : replicate (n-1) bolterRubric
 
 soulreaperRubricSquad ::  Int -> [EquippedModel]
 soulreaperRubricSquad n = soulreaperRubric : rubricSquad (n-1)
+
+-- scarabOccultSquad :: Int -> [EquippedModel]
+-- scarabOccultSquad n = scarabAspiringSorcerer : replicate (n-1) bolterScarab

@@ -6,6 +6,7 @@ import Control.Lens
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Mechanics
+import W40K.Core.Psychic
 
 import W40K.Data.Common
 
@@ -24,6 +25,18 @@ weaverOfFates = (model_inv %~ \inv -> max (inv-1) 3) . (model_name <>~ " (weaver
 deathToTheFalseEmperor :: Modifier
 deathToTheFalseEmperor = em_ccw.as_weapon.w_hooks.hook_hit %~ addHook (MinModifiedRoll 6) (HitHookExtraAttacks 1)
 
+veteransOfTheLongWar :: Modifier
+veteransOfTheLongWar = em_weapons.w_mods.mod_towound +~ 1
+
+
+-- PSYCHIC
+
+presciencePower :: PsychicPower
+presciencePower = PsychicPower
+    { _power_castingValue = 7
+    , _power_inflictMortalWounds = \_ _ _ -> return 0
+    , _power_mod = em_model.model_mods.mod_tohit +~ 1
+    }
 
 -- MODELS
 
