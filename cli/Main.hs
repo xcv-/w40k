@@ -44,12 +44,7 @@ main = do
   createDirectoryIfMissing False baseDir
 
   R.withEmbeddedR $ do
-    testMEQ
-    testRubrics
-    testToughness7
-    testToughness7_bringDownTheBeast
-    testToughness8
-    testToughness8_bringDownTheBeast
+    testInfernalFusillade
 
 
 stormbolters5 = eraseTurn emptyTurn
@@ -63,14 +58,14 @@ stormbolters10 = eraseTurn emptyTurn
       with (GK.psyboltAmmo . rapidFiring) $ GK.terminatorSquad 10 GK.halberd
 
 psilencers = eraseTurn emptyTurn
-  & turnName .~ " psilencer purgators"
+  & turnName .~ "psilencer purgators"
   & turnShooting .~ do
-      with id $ GK.purgatorSquad GK.psilencer
+      GK.purgatorSquad GK.psilencer
 
 psycannons = eraseTurn emptyTurn
-  & turnName .~ " psycannon purgators"
+  & turnName .~ "psycannon purgators"
   & turnShooting .~ do
-      with id $ GK.purgatorSquad GK.psycannon
+      GK.purgatorSquad GK.psycannon
 
 gmndk = eraseTurn emptyTurn
   & turnName .~ "gmndk"
@@ -78,8 +73,8 @@ gmndk = eraseTurn emptyTurn
       [GK.gmndkWith [GK.gatlingPsilencer, GK.heavyPsycannon] GK.greatsword]
 
 
-onslaughtPsilencers = psilencers   & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
-onslaughtPsycannons = psycannons   & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
+onslaughtPsilencers = psilencers & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
+onslaughtPsycannons = psycannons & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
 
 
 baseList = [stormbolters5, stormbolters10, psilencers, onslaughtPsilencers, psycannons, onslaughtPsycannons]
@@ -93,9 +88,7 @@ invocationOnslaughtTideList = map (turnShooting %~ with GK.psyOnslaught)      in
 
 allCombinations bdtb fn targets =
     [ AnalysisConfigGroup "Base list"
-        [ AnalysisConfig ByTarget fn
-            (f baseList)
-            targets
+        [ AnalysisConfig ByTarget fn (f baseList) targets
         ]
     , AnalysisConfigGroup "Base list with ToC"
         [ AnalysisConfig ByTarget fn
@@ -133,8 +126,43 @@ allCombinations bdtb fn targets =
         ]
     ]
   where
-    f | bdtb      = map (turnAttacks %~ with GK.bringDownTheBeast)
+    f | bdtb      = map (turnShooting %~ with GK.bringDownTheBeast)
       | otherwise = id
+
+
+testInfernalFusillade =
+    runTests "InfernalFusillade"
+      [ AnalysisConfigGroup "Rubrics"
+          [ AnalysisConfig ByTarget WoundingSummary      lists targets
+          , AnalysisConfig ByTarget (NumWounds PlotCCDF) lists targets
+          ]
+      ]
+  where
+    rubrics :: GenericTurn
+    rubrics = eraseTurn emptyTurn
+      & turnName .~ "10 rubrics (fusillade/votlw)"
+      & turnShooting .~ do
+          with (TS.infernalFusillade . Chaos.veteransOfTheLongWar . rapidFiring) $
+            TS.soulreaperRubricSquad 10
+
+    lists :: [GenericTurn]
+    lists =
+      [ rubrics
+      , rubrics
+          & turnName <>~ " (cast prescience)"
+          & psychicMod TS.ahrimanPsyker Chaos.presciencePower (\_ -> Just GK.gkPsyker)
+      , rubrics
+          & turnName <>~ " (prescience)"
+          & turnAttacks %~ with (em_model %~ Chaos.prescience)
+      ]
+
+    targets :: [Model]
+    targets =
+      [ GK.paladinModel
+      , inCover GK.paladinModel
+      , GK.armoredResilience GK.paladinModel
+      , GK.armoredResilience (inCover GK.paladinModel)
+      ]
 
 
 testMEQ =
