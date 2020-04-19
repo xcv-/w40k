@@ -98,6 +98,13 @@ heedThePrognosticars :: Model -> Model
 heedThePrognosticars = (model_name <>~ " (HtP)") . (model_mods.mod_toinv +~ 1)
 
 
+armoredResilience :: Model -> Model
+armoredResilience = stack
+    [ model_name                 <>~ " (AR)"
+    , model_mods.mod_tobewounded -~  1
+    ]
+
+
 -- LITANIES
 
 invocationOfFocus :: Modifier
