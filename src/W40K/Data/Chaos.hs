@@ -6,27 +6,31 @@ import Control.Lens
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Mechanics
-import W40K.Core.Psychic
 
 import W40K.Data.Common
 
 
 -- MODIFIERS
 
-diabolicStrength :: Model -> Model
-diabolicStrength = (model_str +~ 2) . (model_att +~ 1)
+diabolicStrength :: ModelEffect
+diabolicStrength =
+    as_model %~ stack [model_str +~ 2, model_att +~ 1]
 
-prescience :: Model -> Model
-prescience = model_mods.mod_tohit +~ 1
+prescience :: ModelEffect
+prescience =
+    as_model.model_mods.mod_tohit +~ 1
 
-weaverOfFates :: Model -> Model
-weaverOfFates = (model_inv %~ \inv -> max (inv-1) 3) . (model_name <>~ " (weaver)")
+weaverOfFates :: ModelEffect
+weaverOfFates =
+    as_model %~ stack [model_inv %~ \inv -> max (inv-1) 3, model_name <>~ " (weaver)"]
 
-deathToTheFalseEmperor :: Modifier
-deathToTheFalseEmperor = em_ccw.as_weapon.w_hooks.hook_hit %~ addHook (MinModifiedRoll 6) (HitHookExtraAttacks 1)
+deathToTheFalseEmperor :: Effect
+deathToTheFalseEmperor =
+    em_ccw.as_weapon.w_hooks.hook_hit %~ addHook (MinModifiedRoll 6) (HitHookExtraAttacks 1)
 
-veteransOfTheLongWar :: Modifier
-veteransOfTheLongWar = em_weapons.w_mods.mod_towound +~ 1
+veteransOfTheLongWar :: Effect
+veteransOfTheLongWar =
+    em_weapons.w_mods.mod_towound +~ 1
 
 
 -- PSYCHIC
@@ -34,8 +38,8 @@ veteransOfTheLongWar = em_weapons.w_mods.mod_towound +~ 1
 presciencePower :: PsychicPower
 presciencePower = PsychicPower
     { _power_castingValue = 7
-    , _power_inflictMortalWounds = \_ _ _ -> return 0
-    , _power_mod = em_model.model_mods.mod_tohit +~ 1
+    , _power_inflictMortalWounds = \_ _ _ -> mempty
+    , _power_effect = em_model.model_mods.mod_tohit +~ 1
     }
 
 -- MODELS

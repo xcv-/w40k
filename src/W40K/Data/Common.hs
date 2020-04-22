@@ -3,44 +3,18 @@ module W40K.Data.Common where
 
 import Prelude hiding (Functor(..), Monad(..), sequence)
 import Data.Bool (bool)
-import Data.List (foldl', intercalate)
+import Data.List (intercalate)
 import Control.Lens
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
-import W40K.Core.Psychic
 
 
 -- TOOLS AND MODIFIERS
 
-rapidFiring :: Modifier
-rapidFiring = em_rw.mapped %~ rapidFireWeapon
-  where
-    rapidFireWeapon rw
-      | rw^.rw_class == RapidFire = rw & rw_shots %~ fmap (*2)
-      | otherwise                 = rw
-
-meltaRange :: Modifier
-meltaRange = em_rw.mapped %~ meltaRangeWeapon
-  where
-    meltaRangeWeapon rw
-      | rw^.rw_melta = rw & rw_dmg %~ \dmg -> liftA2 max dmg dmg
-      | otherwise    = rw
-
-closeEnough :: Modifier
+closeEnough :: Effect
 closeEnough = rapidFiring . meltaRange
-
-splitAttacks :: Int -> CCWeapon -> EquippedModel -> [EquippedModel]
-splitAttacks natt ccw em
-  | (em^.em_model.model_att) >= natt = [ em & em_model.model_att -~ natt
-                                       , em & em_model.model_att .~ natt
-                                            & em_ccw             .~ ccw
-                                       ]
-  | otherwise                        = [em]
-
-moving :: Modifier
-moving = em_model.model_moved .~ True
 
 twice :: (Ord a, Num a) => Prob a -> Prob a
 twice = sumIID 2
@@ -63,9 +37,6 @@ twoHighest a b c
   | b <= a && b <= c = (a, c)
   | otherwise        = (a, b)
 
-stack :: [a -> a] -> a -> a
-stack = foldl' (.) id
-
 successiveRollMortalWounds :: Int -> Prob Int
 successiveRollMortalWounds start
   | start > 6 = return 0
@@ -83,52 +54,48 @@ weaponNames rw = intercalate "+" (rw^..traverse.rw_name)
 
 -- GENERIC TURN FLOWS
 
-psychicMod :: Psyker -> PsychicPower -> (Model -> Maybe Psyker) -> GenericTurn -> GenericTurn
-psychicMod caster power denier (GenericTurn turn) =
+psychicEffect :: Psyker -> PsychicPower -> (tgt -> Maybe Psyker) -> GenericTurn tgt -> GenericTurn tgt
+psychicEffect caster power denier (GenericTurn turn) =
     eraseTurn turn {
-      _turnPsychic = \tgt -> do
-        succeed <- doesManifestPower caster power (denier tgt)
-        (mw0, pr) <- _turnPsychic turn tgt
-        return (mw0, (pr, succeed)),
+      _turnPsychicPhase = \tgt -> do
+          succeed <- doesManifestPower caster power (denier tgt)
+          (mw0, pr) <- _turnPsychicPhase turn tgt
+          return (mw0, (pr, succeed)),
 
-      _turnShooting = \(pr, succeed) ->
-        if succeed then
-          with (power^.power_mod) (_turnShooting turn pr)
-        else
-          _turnShooting turn pr,
+      _turnShootingPhase = \(pr, succeed) tgt ->
+          if succeed then
+            with [power^.power_effect] (_turnShootingPhase turn pr tgt)
+          else
+            _turnShootingPhase turn pr tgt,
 
-      _turnCharges = \(pr, _) -> _turnCharges turn pr,
+      _turnChargePhase = \(pr, _) tgt -> _turnChargePhase turn pr tgt,
 
-      _turnMelee = \(pr, succeed) cr ->
-        if succeed then
-          with (power^.power_mod) (_turnMelee turn pr cr)
-        else
-          _turnMelee turn pr cr
+      _turnFightPhase = \(pr, succeed) cr tgt ->
+          if succeed then
+            with [power^.power_effect] (_turnFightPhase turn pr cr tgt)
+          else
+            _turnFightPhase turn pr cr tgt
     }
 
-chargeFilter :: Prob Bool -> GenericTurn -> GenericTurn
+chargeFilter :: Prob Bool -> GenericTurn tgt -> GenericTurn tgt
 chargeFilter pCharge (GenericTurn turn) =
     eraseTurn turn {
-      _turnCharges = \pr -> do
-        cr <- _turnCharges turn pr
+      _turnChargePhase = \pr tgt -> do
+        cr <- _turnChargePhase turn pr tgt
         crFilter <- pCharge
         return (cr, crFilter),
 
-      _turnMelee = \pr (cr, crFilter) -> if crFilter then _turnMelee turn pr cr else []
+      _turnFightPhase = \pr (cr, crFilter) tgt ->
+          if crFilter then
+            _turnFightPhase turn pr cr tgt
+          else
+            []
     }
 
-deepstriking :: ChargeRerolls -> GenericTurn -> GenericTurn
-deepstriking rr (GenericTurn turn) =
-    eraseTurn turn {
-      _turnCharges = \pr -> do
-        cr <- _turnCharges turn pr
-        ds_cr <- chargeRoll rr 9
-        return (cr, ds_cr),
-
-      _turnShooting = \pr -> with moving (_turnShooting turn pr),
-
-      _turnMelee = \pr (cr, ds_cr) -> if ds_cr then _turnMelee turn pr cr else []
-    }
+deepstrikeCharge :: ChargeRerolls -> Int -> GenericTurn tgt -> GenericTurn tgt
+deepstrikeCharge rr chargeMod gt = gt
+    & chargeFilter (chargeRoll rr (9-chargeMod))
+    & turnShooting_ %~ with [moving]
 
 
 -- MODELS
@@ -203,16 +170,29 @@ rhino = meq
 defaultPsyker :: Psyker
 defaultPsyker = Psyker (sequence [d6,d6]) (sequence [d6,d6]) NoMod NoMod
 
-noopPower :: Int -> PsychicPower
-noopPower wc = PsychicPower
+
+effectPsychic :: Int -> Effect -> PsychicPower
+effectPsychic wc eff = PsychicPower
   { _power_castingValue = wc
-  , _power_inflictMortalWounds = \_ _ _ -> return 0
-  , _power_mod = id
+  , _power_inflictMortalWounds = \_ _ _ -> mempty
+  , _power_effect = eff
   }
 
+
+offensivePsychic :: Int -> (Model -> Model -> Int -> MortalWounds) -> PsychicPower
+offensivePsychic wc dmg = PsychicPower
+  { _power_castingValue = wc
+  , _power_inflictMortalWounds = dmg
+  , _power_effect = id
+  }
+
+
 smite :: PsychicPower
-smite = noopPower 5
-  & power_inflictMortalWounds .~ \_ _ v -> if v > 10 then d6 else d3
+smite = offensivePsychic 5 $ \_ _ v ->
+    if v > 10 then
+      MortalWounds d6
+    else
+      MortalWounds d3
 
 
 -- RANGED WEAPONS

@@ -1,9 +1,10 @@
 {-# language TemplateHaskell #-}
-module W40K.Core.Mechanics.Melee
+module W40K.Core.Mechanics.Weapon.Melee
   ( CCWeapon (..)
   , ccw_strMod, ccw_attBonus, ccw_weapon
   , ccw_ap, ccw_dmg, ccw_mods, ccw_name
   , basic_ccw, makeUnwieldly
+  , module Weapon
   ) where
 
 import Prelude hiding (Functor(..), Monad(..))
@@ -12,8 +13,11 @@ import Control.Lens
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
-import W40K.Core.Mechanics.Common
+import W40K.Core.Mechanics.Model
+import W40K.Core.Mechanics.Roll
+import W40K.Core.Mechanics.Weapon as Weapon
 import W40K.Core.Util (groupWith)
+
 
 data CCWeapon = CCWeapon
   { _ccw_strMod    :: IntMod

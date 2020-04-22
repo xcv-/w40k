@@ -9,10 +9,8 @@ import W40K.Data.Common
 
 -- WARGEAR
 
-novaShield :: Model -> Model
-novaShield m = m
-  & model_inv   .~ 3
-  & model_name <>~ " (nova shield)"
+novaShield :: ModelEffect
+novaShield = as_model %~ stack [model_inv .~ 3, model_name <>~ " (nova shield)"]
 
 
 -- MODELS

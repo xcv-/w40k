@@ -12,19 +12,20 @@ import qualified W40K.Data.Chaos as Chaos
 
 -- MODIFIERS
 
-disgusting :: Model -> Model
-disgusting = model_fnp .~ 5
+disgusting :: ModelEffect
+disgusting = as_model.model_fnp .~ 5
 
-miasmaOfPestilence :: Model -> Model
-miasmaOfPestilence = (model_mods.mod_tobehit -~ 1) . (model_name <>~ " (miasma)")
+miasmaOfPestilence :: ModelEffect
+miasmaOfPestilence = as_model %~ stack [model_mods.mod_tobehit -~ 1, model_name <>~ " (miasma)"]
 
-bladesOfPutrefaction :: EquippedModel -> EquippedModel
-bladesOfPutrefaction =
-    (em_model.model_cc_mods.mod_towound +~ 1)
-    . (em_ccw.as_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 7) (WoundHookMortalWounds (return 1)))
+bladesOfPutrefaction :: Effect
+bladesOfPutrefaction = stack
+    [ em_model.model_cc_mods.mod_towound +~ 1
+    , em_ccw.as_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 7) (WoundHookMortalWounds (return 1))
+    ]
 
-putrescentVitality :: Model -> Model
-putrescentVitality = (model_str +~ 1) . (model_tgh +~ 1) . (model_name <>~ " (putrescent vit.)")
+putrescentVitality :: ModelEffect
+putrescentVitality = as_model %~ stack [model_str +~ 1, model_tgh +~ 1, model_name <>~ " (putrescent vit.)"]
 
 
 -- MODELS
@@ -77,7 +78,7 @@ silenceEviscerating = basic_ccw
 -- EQUIPPED MODEL
 
 mortarion :: CCWeapon -> EquippedModel
-mortarion silence = basicEquippedModel mortarionModel
+mortarion silence = equipped mortarionModel
   & em_ccw .~ silence
   & em_rw  .~ [lantern]
 

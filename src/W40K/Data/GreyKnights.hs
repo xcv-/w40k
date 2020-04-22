@@ -8,7 +8,7 @@ import Control.Lens
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Mechanics
-import W40K.Core.Psychic
+import W40K.Core.Util (filteredOn)
 
 import W40K.Data.Common
 import qualified W40K.Data.Marines as Marines
@@ -63,43 +63,46 @@ isPsiWeapon w =
 
 -- TIDES
 
-tideOfConvergence :: Modifier
+tideOfConvergence :: Effect
 tideOfConvergence =
-    filtered (\em -> em^.em_model.model_class == Infantry).em_rw.mapped.filtered isPsiWeapon %~
-      stack [rw_str +~ 1, rw_dmg %~ fmap (+1), rw_name <>~ " (ToC)"]
+    filteredOn (em_model.model_class) (== Infantry).em_rw.mapped.filtered isPsiWeapon %~ stack
+        [rw_str +~ 1, rw_dmg %~ fmap (+1), rw_name <>~ " (ToC)"]
 
 
 -- STRATAGEMS
 
-psyboltAmmo :: Modifier
+psyboltAmmo :: Effect
 psyboltAmmo =
-    em_rw.mapped.filtered isBoltWeapon %~
-      stack [rw_ap -~ 1, rw_str +~ 1, rw_name <>~ " (psybolt)"]
+    em_rw.mapped.filtered isBoltWeapon %~ stack
+        [rw_ap -~ 1, rw_str +~ 1, rw_name <>~ " (psybolt)"]
 
 
-psyOnslaught :: Modifier
+psyOnslaught :: Effect
 psyOnslaught =
-    em_rw.mapped.filtered (\rw -> rw^.rw_name `elem` psiWeapons) %~
-      stack [rw_ap -~ 1, rw_str +~ 1, rw_name <>~ " (onslaught)"]
+    em_rw.mapped.filteredOn rw_name (`elem` psiWeapons) %~ stack
+        [rw_ap -~ 1, rw_str +~ 1, rw_name <>~ " (onslaught)"]
   where
     psiWeapons = ["psilencer", "psycannon", "heavy psycannon", "gatling psilencer"]
 
 
-bringDownTheBeast :: Modifier
-bringDownTheBeast = em_model.model_mods.mod_rrtowound .~ RerollAll
+bringDownTheBeast :: ModelEffect
+bringDownTheBeast = as_model.model_mods.mod_rrtowound .~ RerollAll
 
 
-furyOfTheProven :: Modifier
-furyOfTheProven = em_model.model_mods.mod_tohit +~ 1
+furyOfTheProven :: ModelEffect
+furyOfTheProven = as_model.model_mods.mod_tohit +~ 1
 -- TODO: TERMINATOR keyword only
 
 
-heedThePrognosticars :: Model -> Model
-heedThePrognosticars = (model_name <>~ " (HtP)") . (model_mods.mod_toinv +~ 1)
+heedThePrognosticars :: ModelEffect
+heedThePrognosticars = as_model %~ stack
+    [ model_name <>~ " (HtP)"
+    , model_inv  %~ max 3 . subtract 1 -- see FAQ
+    ]
 
 
-armoredResilience :: Model -> Model
-armoredResilience = stack
+armoredResilience :: ModelEffect
+armoredResilience = as_model %~ stack
     [ model_name                 <>~ " (AR)"
     , model_mods.mod_tobewounded -~  1
     ]
@@ -107,36 +110,79 @@ armoredResilience = stack
 
 -- LITANIES
 
-invocationOfFocus :: Modifier
+invocationOfFocus :: Effect
 invocationOfFocus =
-    em_weapons.filtered (\w -> isPsiWeapon w || isNemesisWeapon w) %~
-      stack [w_ap -~ 1, w_name <>~ " (IoF)"]
+    em_weapons.filtered (\w -> isPsiWeapon w || isNemesisWeapon w) %~ stack
+        [w_ap -~ 1, w_name <>~ " (IoF)"]
+
+
+-- PSYCHIC
+
+gkPsyker :: Psyker
+gkPsyker = defaultPsyker
+  & psyker_cast_mod .~ Add 1
+  & psyker_deny_mod .~ Add 1
+
+psychicChanneling :: Psyker -> Psyker
+psychicChanneling =
+    psyker_cast_roll %~ \proll -> do
+      extra <- d6
+      roll <- proll
+      return (tail (sort (extra:roll)))
+
+withTheAegis :: Psyker -> Psyker
+withTheAegis =
+    psyker_deny_roll %~ \proll -> do
+      extra <- d6
+      roll <- proll
+      return (tail (sort (extra:roll)))
+
+ritesOfBanishmentPower :: PsychicPower
+ritesOfBanishmentPower = smite
+  & power_inflictMortalWounds .~ \_ _ _ -> MortalWounds (return 1)
+
+cleansingFlamePower :: PsychicPower
+cleansingFlamePower = smite
+  & power_inflictMortalWounds .~ \_ _ _ -> MortalWounds d6
+
+vortexOfDoomPower :: PsychicPower
+vortexOfDoomPower = offensivePsychic 8 $ \_ _ cv ->
+    if cv >= 12 then
+      MortalWounds d6
+    else
+      MortalWounds d3
+
+purgeSoulPower :: PsychicPower
+purgeSoulPower = offensivePsychic 5 $ \src tgt _ -> MortalWounds $ do
+    diff <- liftA2 (-) d6 d6
+    return $ max 0 (src^.model_ld - tgt^.model_ld + diff)
+
+hammerhandPower :: PsychicPower
+hammerhandPower = effectPsychic 6 hammerhand
+
+hammerhand :: ModelEffect
+hammerhand = as_model.model_cc_mods.mod_towound +~ 1
+
+sanctuary :: ModelEffect
+sanctuary = as_model %~ stack [model_inv %~ improveInv, model_name <>~ " (sanctuary)"]
+  where
+    improveInv :: Int -> Int
+    improveInv inv
+      | inv <= 3  = inv -- see FAQ
+      | inv >= 7  = 5
+      | otherwise = inv - 1
 
 
 -- MISC MODIFIERS
 
-gkWithSpecialWeapon :: RngWeapon -> Modifier
+gkWithSpecialWeapon :: RngWeapon -> EquippedModel -> EquippedModel
 gkWithSpecialWeapon rw em = em
   & em_rw  .~ [rw]
   & em_ccw .~ basic_ccw
 
 
-brotherhoodBanner :: Modifier
-brotherhoodBanner m = m & em_model.model_att +~ 1 & em_model.model_ld +~ 1
-
-
-hammerhanded :: Modifier
-hammerhanded = em_model.model_cc_mods.mod_towound +~ 1
-
-
-sanctuary :: Model -> Model
-sanctuary = stack [model_inv %~ improveInv, model_name <>~ " (sanctuary)"]
-  where
-    improveInv :: Int -> Int
-    improveInv inv
-      | inv <= 3  = inv                    -- see FAQ
-      | inv >= 7  = 5
-      | otherwise = inv - 1
+brotherhoodBanner :: ModelEffect
+brotherhoodBanner = as_model %~ stack [model_att +~ 1, model_ld +~ 1]
 
 
 bladeShieldStance :: RollMods -> RollMods
@@ -237,50 +283,6 @@ draigoModel = grandMasterModel
   & model_inv  .~ 3
   & model_mods <>~ draigoMods
   & model_name .~ "lord kaldor draigo"
-
--- PSYCHIC
-
-gkPsyker :: Psyker
-gkPsyker = defaultPsyker
-  & psyker_cast_mod .~ Add 1
-  & psyker_deny_mod .~ Add 1
-
-psychicChanneling :: Psyker -> Psyker
-psychicChanneling =
-    psyker_cast_roll %~ \proll -> do
-      extra <- d6
-      roll <- proll
-      return (tail (sort (extra:roll)))
-
-withTheAegis :: Psyker -> Psyker
-withTheAegis =
-    psyker_deny_roll %~ \proll -> do
-      extra <- d6
-      roll <- proll
-      return (tail (sort (extra:roll)))
-
-ritesOfBanishment :: PsychicPower
-ritesOfBanishment = smite
-  & power_inflictMortalWounds .~ \_ _ _ -> return 1
-
-cleansingFlame :: PsychicPower
-cleansingFlame = smite
-  & power_inflictMortalWounds .~ \_ _ _ -> d6
-
-vortexOfDoom :: PsychicPower
-vortexOfDoom = noopPower 8
-  & power_inflictMortalWounds .~ \_ _ cv -> if cv >= 12 then d6 else d3
-
-purgeSoul :: PsychicPower
-purgeSoul = noopPower 5
-  & power_inflictMortalWounds .~ \src tgt _ -> do
-      diff <- liftA2 (-) d6 d6
-      return $ max 0 (src^.model_ld - tgt^.model_ld + diff)
-
-hammerhand :: PsychicPower
-hammerhand = noopPower 6
-  & power_mod .~ hammerhanded
-
 
 
 -- RANGED WEAPONS
@@ -415,7 +417,7 @@ nemesisDoomglaive = nemesis_ccw
 -- EQUIPPED MODELS
 
 gkEquippedModel :: Model -> CCWeapon -> EquippedModel
-gkEquippedModel m ccw = basicEquippedModel m
+gkEquippedModel m ccw = equipped m
   & em_ccw .~ ccw
   & em_rw  .~ [stormBolter]
 
@@ -427,7 +429,7 @@ greyKnightJusticar :: CCWeapon -> EquippedModel
 greyKnightJusticar = gkEquippedModel (asJusticar greyKnightModel)
 
 purgator :: RngWeapon -> EquippedModel
-purgator rw = basicEquippedModel purgatorModel
+purgator rw = equipped purgatorModel
   & em_rw .~ [rw]
 
 purgatorJusticar :: CCWeapon -> EquippedModel
@@ -454,7 +456,7 @@ paragon :: CCWeapon -> EquippedModel
 paragon = gkEquippedModel paragonModel
 
 apothecary :: CCWeapon -> EquippedModel
-apothecary ccw = basicEquippedModel apothecaryModel
+apothecary ccw = equipped apothecaryModel
   & em_ccw .~ ccw
 
 brotherhoodChampion :: (RollMods -> RollMods) -> EquippedModel
@@ -472,7 +474,7 @@ grandMaster :: CCWeapon -> EquippedModel
 grandMaster = gkEquippedModel grandMasterModel
 
 gmndkWith :: [RngWeapon] -> CCWeapon -> EquippedModel
-gmndkWith rw ccw = basicEquippedModel gmndkModel
+gmndkWith rw ccw = equipped gmndkModel
   & em_rw  .~ rw
   & em_ccw .~ ccw
 
@@ -487,7 +489,7 @@ draigo :: EquippedModel
 draigo = gkEquippedModel draigoModel titansword
 
 doomglaiveDread :: EquippedModel
-doomglaiveDread = basicEquippedModel Marines.venDreadnought
+doomglaiveDread = equipped Marines.venDreadnought
   & em_rw    .~ [stormBolter, heavyPsycannon]
   & em_ccw   .~ nemesisDoomglaive
   & em_name  .~ "doomglaive dreadnought"

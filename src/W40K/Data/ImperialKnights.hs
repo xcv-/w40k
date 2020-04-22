@@ -14,20 +14,20 @@ import qualified W40K.Data.Marines as Marines
 
 -- MODIFIERS
 
-ionFlareShield :: Model -> Model
-ionFlareShield = (model_rng_inv .~ 4) . (model_cc_inv .~ 5)
+ionFlareShield :: ModelEffect
+ionFlareShield = as_model %~ stack [model_rng_inv .~ 4, model_cc_inv .~ 5]
 
-ionBulwark :: Model -> Model
-ionBulwark = (model_rng_inv %~ min 4) . (model_name <>~ " (bulwark)")
+ionBulwark :: ModelEffect
+ionBulwark = as_model %~ stack [model_rng_inv %~ min 4, model_name <>~ " (bulwark)"]
 
-rotateIonShields :: Model -> Model
-rotateIonShields = (model_inv %~ max 4 . subtract 1) . (model_name <>~ " (RIO)")
+rotateIonShields :: ModelEffect
+rotateIonShields = as_model %~ stack [model_inv %~ max 4 . subtract 1, model_name <>~ " (RIO)"]
 
-firstKnight :: Model -> Model
-firstKnight = model_mods.mod_rrtohit <>~ RerollOnes
+firstKnight :: ModelEffect
+firstKnight = as_model.model_mods.mod_rrtohit <>~ RerollOnes
 
-helmDominatus :: Model -> Model
-helmDominatus = model_mods.mod_tohit +~ 1
+helmDominatus :: ModelEffect
+helmDominatus = as_model.model_mods.mod_tohit +~ 1
 
 headman'sMark :: EquippedModel -> EquippedModel
 headman'sMark em = em
@@ -244,13 +244,13 @@ sweeping em
   | otherwise                          = em
 
 armigerWarglaive :: EquippedModel
-armigerWarglaive = basicEquippedModel armigerModel
+armigerWarglaive = equipped armigerModel
   & em_rw     .~ [meltagun, thermalSpear]
   & em_ccw    .~ chainCleaverCrushing
   & em_name   .~ "armiger warglaive w/meltagun"
 
 armigerHelverin :: EquippedModel
-armigerHelverin = basicEquippedModel armigerModel
+armigerHelverin = equipped armigerModel
   & em_rw     .~ heavyStubber : two [armigerAutocannon]
   & em_name   .~ "armiger helverin"
 
@@ -259,13 +259,13 @@ stomping :: EquippedModel -> EquippedModel
 stomping = (em_ccw .~ titanicFeet) . (em_name <>~ " (stomping)")
 
 questoris :: String -> CCWeapon -> [RngWeapon] -> EquippedModel
-questoris name ccw rws = basicEquippedModel questorisModel
+questoris name ccw rws = equipped questorisModel
   & em_rw    .~ rws
   & em_ccw   .~ ccw
   & em_name  .~ "knight " ++ name ++ " w/" ++ ccw^.ccw_name
 
 cerastus :: String -> CCWeapon -> [RngWeapon] -> EquippedModel
-cerastus name ccw rws = basicEquippedModel cerastusModel
+cerastus name ccw rws = equipped cerastusModel
   & em_rw    .~ rws
   & em_ccw   .~ ccw
   & em_name  .~ "knight " ++ name ++ " w/" ++ ccw^.ccw_name
@@ -295,6 +295,6 @@ knightAtropos :: EquippedModel
 knightAtropos = cerastus "atropos" atroposLascutter [atroposLascutterShot, gravitonSingularityCannon]
 
 knightCastellan :: RngWeapon -> EquippedModel
-knightCastellan plasmaArm = basicEquippedModel dominusModel
+knightCastellan plasmaArm = equipped dominusModel
   & em_rw     .~ [volcanoLance] ++ two [twin meltagun] ++ [plasmaArm] ++ two [twin siegeBreakerCannon] ++ [shieldBreakerMissile]
   & em_name   .~ "knight castellan"

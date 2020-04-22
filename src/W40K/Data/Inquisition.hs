@@ -1,3 +1,4 @@
+{-# language RankNTypes #-}
 module W40K.Data.Inquisition where
 
 import Prelude hiding (Functor(..), Monad(..))
@@ -15,15 +16,9 @@ import qualified W40K.Data.Marines as Marines
 data Quarry = OrdoMalleus | OrdoHereticus | OrdoXenos | OrdoSpecialist
     deriving (Eq, Ord, Show)
 
-quarryBonus :: Quarry -> Model -> Model
-quarryBonus OrdoMalleus    = stack [ model_mods.mod_rrtohit   <>~ RerollFailed
-                                   , model_mods.mod_rrtowound <>~ RerollFailed
-                                   ]
-quarryBonus OrdoXenos      = stack [ model_mods.mod_rrtohit   <>~ RerollFailed
-                                   , model_mods.mod_rrtowound <>~ RerollFailed
-                                   ]
-quarryBonus OrdoHereticus  = quarryBonus OrdoMalleus
-quarryBonus OrdoSpecialist = quarryBonus OrdoXenos
+quarryBonus :: ModelEffect
+quarryBonus = as_model.model_mods %~ stack [mod_rrtohit <>~ RerollFailed, mod_rrtowound <>~ RerollFailed]
+-- TODO: keyword verification
 
 
 -- MODELS
@@ -36,12 +31,12 @@ landraiderPrometheusModel = Marines.landraider
 -- EQUIPPED MODELS
 
 landraiderPrometheusWith :: [RngWeapon] -> EquippedModel
-landraiderPrometheusWith rw = basicEquippedModel landraiderPrometheusModel
+landraiderPrometheusWith rw = equipped landraiderPrometheusModel
   & em_rw   .~ rw
   & em_name .~ "LR prometheus w/ " ++ weaponNames rw
 
 landraiderPrometheusPlus :: [RngWeapon] -> EquippedModel
-landraiderPrometheusPlus rw = basicEquippedModel landraiderPrometheusModel
+landraiderPrometheusPlus rw = equipped landraiderPrometheusModel
   & em_rw   .~ rw ++ two [quad heavyBolter]
   & em_name .~ "LR prometheus w/ bolters+" ++ weaponNames rw
 

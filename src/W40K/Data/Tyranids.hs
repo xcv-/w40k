@@ -8,19 +8,19 @@ import W40K.Core.Mechanics
 import W40K.Data.Common
 
 
-kronosAdaptation :: Modifier
-kronosAdaptation = em_model.model_rng_mods.mod_rrtohit <>~ RerollOnes
+kronosAdaptation :: ModelEffect
+kronosAdaptation = as_model.model_rng_mods.mod_rrtohit <>~ RerollOnes
 
-pathogenicSlime :: Modifier
+pathogenicSlime :: Effect
 pathogenicSlime = em_rw.mapped.rw_dmg %~ fmap (+1)
 
-symbioticTargeting :: Modifier
-symbioticTargeting = em_model.model_rng_mods.mod_tohit +~ 1
+symbioticTargeting :: ModelEffect
+symbioticTargeting = as_model.model_rng_mods.mod_tohit +~ 1
 
-singleMindedAnnihilation :: Modifier
+singleMindedAnnihilation :: Effect
 singleMindedAnnihilation = em_rw %~ \rws -> [rw | rw <- rws, _ <- [(), ()]]
 
-weaponBeast :: Modifier
+weaponBeast :: Effect
 weaponBeast = em_rw %~ \rws -> [rw | rw <- rws, _ <- [(), ()]]
 
 -- MODELS
@@ -126,16 +126,16 @@ powerfulLimbs = basic_ccw
 -- EQUIPPED MODELS
 
 hiveGuard :: RngWeapon -> EquippedModel
-hiveGuard rw = basicEquippedModel hiveGuardModel
+hiveGuard rw = equipped hiveGuardModel
   & em_rw .~ [rw]
 
 exocrine :: EquippedModel
-exocrine = basicEquippedModel exocrineModel
+exocrine = equipped exocrineModel
   & em_rw  .~ [bioPlasmicCannon]
   & em_ccw .~ powerfulLimbs
 
 tyrannofex :: RngWeapon -> EquippedModel
-tyrannofex rw = basicEquippedModel tyrannofexModel
+tyrannofex rw = equipped tyrannofexModel
   & em_rw  .~ [rw]
   & em_ccw .~ powerfulLimbs
 

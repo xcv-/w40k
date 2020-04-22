@@ -8,10 +8,11 @@ module W40K.Core.Util
   , (:*:)(..)
   , groupWith
   , capitalize
+  , filteredOn
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Lens (over, _head)
+import Control.Lens (Getting, Choice, Optic', over, _head, filtered, view)
 import Control.Parallel.Strategies (withStrategy, rpar, parList)
 
 import Data.Char (toUpper)
@@ -50,3 +51,7 @@ groupWith eqrel fold = map combine . groupBy eqrel
 
 capitalize :: String -> String
 capitalize = over _head toUpper
+
+
+filteredOn :: (Choice p, Applicative f) => Getting a s a -> (a -> Bool) -> Optic' p f s s
+filteredOn getter p = filtered (p . view getter)

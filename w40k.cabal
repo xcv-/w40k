@@ -14,7 +14,7 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 flag ggplot
-  description:   Enable the ggplot plotting backend
+  description:   Enable the R/ggplot2 plotting backend
   default:       True
   manual:        True
 
@@ -27,19 +27,24 @@ library
   hs-source-dirs:      src
   exposed-modules:     W40K.Core.Chart,
                        W40K.Core.ConstrMonad,
-                       W40K.Core.Prob,
                        W40K.Core.Mechanics,
-                       W40K.Core.Mechanics.Common,
-                       W40K.Core.Mechanics.Melee,
-                       W40K.Core.Mechanics.Ranged,
-                       W40K.Core.Psychic,
+                       W40K.Core.Mechanics.Attack,
+                       W40K.Core.Mechanics.Equipped,
+                       W40K.Core.Mechanics.Model,
+                       W40K.Core.Mechanics.Psychic,
+                       W40K.Core.Mechanics.Roll,
+                       W40K.Core.Mechanics.Turn,
+                       W40K.Core.Mechanics.Weapon,
+                       W40K.Core.Mechanics.Weapon.Melee,
+                       W40K.Core.Mechanics.Weapon.Ranged,
+                       W40K.Core.Prob,
                        W40K.Core.SortedList,
                        W40K.Core.Util,
                        W40K.Data.AdMech,
                        W40K.Data.Assassins,
                        W40K.Data.Chaos,
-                       W40K.Data.Custodes,
                        W40K.Data.Common,
+                       W40K.Data.Custodes,
                        W40K.Data.Daemons,
                        W40K.Data.DeathGuard,
                        W40K.Data.Eldar,

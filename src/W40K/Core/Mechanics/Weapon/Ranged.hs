@@ -1,10 +1,11 @@
 {-# language TemplateHaskell #-}
-module W40K.Core.Mechanics.Ranged
+module W40K.Core.Mechanics.Weapon.Ranged
   ( RngWeaponClass (..)
   , RngWeapon (..)
   , rw_shots, rw_str, rw_class, rw_weapon, rw_melta
   , rw_ap, rw_dmg, rw_mods, rw_name
   , null_rw
+  , module Weapon
   ) where
 
 import Prelude hiding (Functor(..), Monad(..))
@@ -13,7 +14,9 @@ import Control.Lens
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
-import W40K.Core.Mechanics.Common
+import W40K.Core.Mechanics.Model
+import W40K.Core.Mechanics.Roll
+import W40K.Core.Mechanics.Weapon as Weapon
 import W40K.Core.Util (groupWith)
 
 data RngWeaponClass = Heavy | Grenade | RapidFire | Pistol | Assault

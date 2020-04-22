@@ -14,6 +14,7 @@ module W40K.Core.SortedList
   , toAscList
   , map
   , mapMonotone
+  , mapMonotone'
   , concat
   ) where
 
@@ -84,9 +85,15 @@ map :: SortedListItem b => (a -> b) -> SortedList a -> SortedList b
 map f (SortedList as) = fromList (Prelude.map f as)
 {-# inline map #-}
 
+-- unsafe if f is not monotone
 mapMonotone :: SortedListItem b => (a -> b) -> SortedList a -> SortedList b
 mapMonotone f (SortedList as) = fromAscList (reduce (Prelude.map f as))
 {-# inline mapMonotone #-}
+
+-- unsafe if f is not *strictly* monotone
+mapMonotone' :: (a -> b) -> SortedList a -> SortedList b
+mapMonotone' f (SortedList as) = fromAscList (Prelude.map f as)
+{-# inline mapMonotone' #-}
 
 concat :: SortedListItem a => [SortedList a] -> SortedList a
 concat = seqItemsSL . mergeSortedListsN

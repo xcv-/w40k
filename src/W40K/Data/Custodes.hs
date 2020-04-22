@@ -11,29 +11,33 @@ import W40K.Data.Marines (leviathanDreadnought)
 
 -- BANNERS
 
-vexillaMagnifica :: Model -> Model
-vexillaMagnifica m = m
-  & model_rng_mods.mod_tobehit -~ 1
-  & model_name                 <>~ " (VM)"
+vexillaMagnifica :: ModelEffect
+vexillaMagnifica = as_model %~ stack
+  [ model_rng_mods.mod_tobehit -~ 1
+  , model_name                 <>~ " (VM)"
+  ]
 
 -- RELICS
 
-auricAquilas :: Model -> Model
-auricAquilas m = m
-  & model_inv  .~ 3
-  & model_name <>~ " (AA)"
+auricAquilas :: ModelEffect
+auricAquilas = as_model %~ stack
+  [ model_inv  .~ 3
+  , model_name <>~ " (AA)"
+  ]
 
 -- WARLORD TRAITS
 
-radiantMantle :: Model -> Model
-radiantMantle m = m
-  & model_mods.mod_tobehit -~ -1
-  & model_name             <>~ " (RM)"
+radiantMantle :: ModelEffect
+radiantMantle = as_model %~ stack
+  [ model_mods.mod_tobehit -~ -1
+  , model_name             <>~ " (RM)"
+  ]
 
-superiorCreation :: Model -> Model
-superiorCreation m = m
-  & model_fnp  .~ 5
-  & model_name <>~ " (SC)"
+superiorCreation :: ModelEffect
+superiorCreation = as_model %~ stack
+  [ model_fnp  .~ 5
+  , model_name <>~ " (SC)"
+  ]
 
 
 -- MODELS

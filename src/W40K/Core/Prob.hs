@@ -14,6 +14,7 @@ module W40K.Core.Prob
   , traceNumEvents
   , fmapProb
   , fmapProbMonotone
+  , fmapProbMonotone'
   , (|>>=|), (|=<<|)
   , uniformly
   , probTrue
@@ -104,9 +105,15 @@ fmapProb f (Prob evts) = Prob (SortedList.map (mapEvent f) evts)
 {-# rules "fmap/fmapProb" fmap = fmapProb #-}
 {-# specialize fmapProb :: (a -> Int) -> Prob a -> Prob Int #-}
 
+-- only for monotone f
 fmapProbMonotone :: Ord b => (a -> b) -> Prob a -> Prob b
 fmapProbMonotone f (Prob evts) = Prob (SortedList.mapMonotone (mapEvent f) evts)
 {-# inline fmapProbMonotone #-}
+
+-- only for *strictly* monotone f
+fmapProbMonotone' :: (a -> b) -> Prob a -> Prob b
+fmapProbMonotone' f (Prob evts) = Prob (SortedList.mapMonotone' (mapEvent f) evts)
+{-# inline fmapProbMonotone' #-}
 
 bindProbWithStrat :: Ord b => (forall c. [c] -> [c]) -> Prob a -> (a -> Prob b) -> Prob b
 bindProbWithStrat evalList (Prob evts) f =
@@ -125,7 +132,7 @@ instance ConstrMonad Ord Prob where
     {-# inline return #-}
     (>>=) = bindProbWithStrat seqItems
     {-# inline (>>=) #-}
-    {-# specialize (>>=) :: Ord a => Prob a -> (a -> Prob Int) -> Prob Int #-}
+    {-# specialize (>>=) :: Prob a -> (a -> Prob Int) -> Prob Int #-}
 
 (|>>=|) :: (Ord a, Ord b) => Prob a -> (a -> Prob b) -> Prob b
 (|>>=|) = bindProbWithStrat parItems

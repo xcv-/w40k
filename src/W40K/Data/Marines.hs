@@ -11,8 +11,8 @@ import W40K.Data.Common
 
 -- STRATAGEMS
 
-transhumanPhysiology :: Model -> Model
-transhumanPhysiology = model_unmodifiedMinWound %~ max 4
+transhumanPhysiology :: ModelEffect
+transhumanPhysiology = as_model.model_unmodifiedMinWound %~ max 4
 
 
 -- AURAS
@@ -28,19 +28,17 @@ guillimanAura = noAura
   & aura_any.mod_rrtohit   .~ RerollAll
   & aura_any.mod_rrtowound .~ RerollOnes
 
-telionAbility :: Model -> Model
-telionAbility = model_mods.mod_tohit +~ 1
+telionAbility :: ModelEffect
+telionAbility = as_model.model_mods.mod_tohit +~ 1
 
-strafingRun :: Model -> Model
-strafingRun = model_mods.mod_tohit +~ 1
+strafingRun :: ModelEffect
+strafingRun = as_model.model_mods.mod_tohit +~ 1
 
-interceptorJet :: Model -> Model
-interceptorJet = model_mods.mod_tohit +~ 1
+interceptorJet :: ModelEffect
+interceptorJet = as_model.model_mods.mod_tohit +~ 1
 
-fleshIsWeak :: Model -> Model
-fleshIsWeak m = m
-  & model_fnp  %~  min 6
-  & model_name <>~ " (IH)"
+fleshIsWeak :: ModelEffect
+fleshIsWeak = as_model %~ stack [model_fnp %~  min 6, model_name <>~ " (IH)"]
 
 
 -- MODELS
@@ -242,49 +240,49 @@ helfrostDestructorFocused = lascannon
 -- EQUIPPED MODELS
 
 bolterTactical :: EquippedModel
-bolterTactical = basicEquippedModel meq
+bolterTactical = equipped meq
   & em_rw   .~ [bolter]
   & em_name .~ "tactical marine"
 
 intercessor :: EquippedModel
-intercessor = basicEquippedModel primaris
+intercessor = equipped primaris
   & em_rw    .~ [bolter & rw_ap .~ -1]
   & em_name  .~ "primaris intercessor"
 
 telion :: EquippedModel
-telion = basicEquippedModel scoutSargeant
+telion = equipped scoutSargeant
   & em_model.model_bs  .~ 2
   & em_model.model_wnd .~ 4
   & em_rw              .~ [quietusRifle]
   & em_name            .~ "sargeant telion"
 
 razorbackWith :: [RngWeapon] -> EquippedModel
-razorbackWith rw = basicEquippedModel razorback
+razorbackWith rw = equipped razorback
   & em_rw    .~ rw
   & em_name  .~ "razorback w/ " ++ weaponNames rw
 
 predatorWith :: [RngWeapon] -> EquippedModel
-predatorWith rw = basicEquippedModel predator
+predatorWith rw = equipped predator
   & em_rw    .~ rw
   & em_name  .~ "predator w/ " ++ weaponNames rw
 
 landraiderWith :: [RngWeapon] -> EquippedModel
-landraiderWith rw = basicEquippedModel landraider
+landraiderWith rw = equipped landraider
   & em_rw    .~ rw
   & em_name  .~ "landraider w/ " ++ weaponNames rw
 
 stormtalonWith :: [RngWeapon] -> EquippedModel
-stormtalonWith rw = basicEquippedModel stormtalon
+stormtalonWith rw = equipped stormtalon
   & em_rw    .~ rw
   & em_name  .~ "stormtalon w/ " ++ weaponNames rw
 
 stormhawkWith :: [RngWeapon] -> EquippedModel
-stormhawkWith rw = basicEquippedModel stormhawk
+stormhawkWith rw = equipped stormhawk
   & em_rw    .~ rw
   & em_name  .~ "stormhawk w/ " ++ weaponNames rw
 
 stormravenWith :: [RngWeapon] -> EquippedModel
-stormravenWith rw = basicEquippedModel stormraven
+stormravenWith rw = equipped stormraven
   & em_rw    .~ rw
   & em_name  .~ "stormraven w/ " ++ weaponNames rw
 
@@ -302,8 +300,8 @@ stormfangWithAvWith mainCannon =
 
 sniperSquad :: Int -> [EquippedModel]
 sniperSquad n =
-    (basicEquippedModel scoutSargeant & em_rw .~ [sniperRifle])
-    : replicate (n-1) (basicEquippedModel scout & em_rw .~ [sniperRifle])
+    (equipped scoutSargeant & em_rw .~ [sniperRifle])
+    : replicate (n-1) (equipped scout & em_rw .~ [sniperRifle])
 
 laserRazorback :: EquippedModel
 laserRazorback = razorbackWith [twin lascannon]
@@ -314,7 +312,7 @@ meltaStormraven =
     & em_name .~ "stormraven w/ MM+SS"
 
 fullAvVenDreadnought :: EquippedModel
-fullAvVenDreadnought = basicEquippedModel venDreadnought
+fullAvVenDreadnought = equipped venDreadnought
     & em_rw   .~ [twin lascannon, krakMissile]
     & em_name .~ "ven dreadnought w/ LC+ML"
 

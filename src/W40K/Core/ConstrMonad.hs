@@ -18,7 +18,7 @@ instance NoConstr a
 
 class ConstrMonad c m | m -> c where
     return :: c a => a -> m a
-    (>>=)  :: (c a, c b) => m a -> (a -> m b) -> m b
+    (>>=)  :: c b => m a -> (a -> m b) -> m b
 
     default return :: Prelude.Monad m => a -> m a
     return = Prelude.return

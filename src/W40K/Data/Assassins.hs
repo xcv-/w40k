@@ -43,5 +43,5 @@ exitusRifle = null_rw
   & rw_name                      .~ "exitus rifle"
 
 vindicare :: EquippedModel
-vindicare = basicEquippedModel vindicareModel
+vindicare = equipped vindicareModel
   & em_rw .~ [exitusRifle]

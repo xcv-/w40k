@@ -7,39 +7,39 @@ import Data.List (isInfixOf)
 import W40K.Core.ConstrMonad
 import W40K.Core.Prob
 import W40K.Core.Mechanics
-import W40K.Core.Psychic
+import W40K.Core.Util (filteredOn)
 
 import W40K.Data.Common
 import qualified W40K.Data.Chaos as Chaos
 
 
-otherworldlyPresence :: Model -> Model
-otherworldlyPresence = stack [model_inv -~ 1, model_name <>~ " (OwP)"]
+otherworldlyPresence :: ModelEffect
+otherworldlyPresence = as_model %~ stack [model_inv -~ 1, model_name <>~ " (OwP)"]
 
-glamourOfTzeentch :: Model -> Model
-glamourOfTzeentch = stack [model_mods.mod_tobehit -~ 1, model_name <>~ " (GoT)"]
+glamourOfTzeentch :: ModelEffect
+glamourOfTzeentch = as_model %~ stack [model_mods.mod_tobehit -~ 1, model_name <>~ " (GoT)"]
 
-weaverOfFates :: Model -> Model
+weaverOfFates :: ModelEffect
 weaverOfFates = Chaos.weaverOfFates
 
 gazeOfMagnus :: PsychicPower
-gazeOfMagnus = smite
-  & power_inflictMortalWounds .~ \_ _ cv ->
-      if cv >= 10 then two_d6 else d6
+gazeOfMagnus = offensivePsychic 5 $ \_ _ cv ->
+    if cv >= 10 then
+      MortalWounds two_d6
+    else
+      MortalWounds d6
   where
     two_d6 = sumProbs [d6, d6]
 
-infernalFusillade :: Modifier
+infernalFusillade :: Effect
 infernalFusillade =
-    filtered isRubricOrScarab
+    filteredOn (em_model.model_name) isRubricOrScarab
     .em_rw
     .mapped
     .filtered (\rw -> rw^.rw_class == RapidFire)
     .rw_shots %~ fmap (*2)
   where
-    isRubricOrScarab em =
-        isInfixOf "rubric" (em^.em_model.model_name) ||
-        isInfixOf "scarab occult" (em^.em_model.model_name)
+    isRubricOrScarab name = isInfixOf "rubric" name || isInfixOf "scarab occult" name
 
 
 -- PSYCHIC
@@ -52,6 +52,7 @@ ahrimanPsyker = defaultPsyker
 
 magnusPsychicAura :: Psyker -> Psyker
 magnusPsychicAura = psyker_cast_roll .~ sequence [d6rr1, d6rr1]
+
 
 magnusPsyker :: Psyker
 magnusPsyker = defaultPsyker
@@ -150,7 +151,7 @@ bladeOfMagnus = basic_ccw
 -- EQUIPPED MODELS
 
 tzaangor :: EquippedModel
-tzaangor = basicEquippedModel tzaangorModel
+tzaangor = equipped tzaangorModel
   & em_ccw   .~ tzaangorBlades
 
 twistbray :: EquippedModel
@@ -159,11 +160,11 @@ twistbray = tzaangor
   & em_name  .~ "twistbray"
 
 bolterRubric :: EquippedModel
-bolterRubric = basicEquippedModel rubricModel
+bolterRubric = equipped rubricModel
   & em_rw    .~ [infernoBolter]
 
 soulreaperRubric :: EquippedModel
-soulreaperRubric = basicEquippedModel rubricModel
+soulreaperRubric = equipped rubricModel
   & em_rw    .~ [soulreaperCannon]
 
 aspiringSorcerer :: EquippedModel
@@ -174,7 +175,7 @@ aspiringSorcerer = bolterRubric
   & em_name  .~ "rubric aspiring sorcerer"
 
 magnus :: EquippedModel
-magnus = basicEquippedModel magnusModel
+magnus = equipped magnusModel
   & em_ccw   .~ bladeOfMagnus
   & em_name  .~ "magnus the red"
 
@@ -190,7 +191,7 @@ buffedMagnus = magnus
 -- SQUADS
 
 maleficTalonsDaemonPrince :: EquippedModel
-maleficTalonsDaemonPrince = basicEquippedModel daemonPrinceModel
+maleficTalonsDaemonPrince = equipped daemonPrinceModel
   & em_ccw   .~ Chaos.twoMaleficTalons
   & em_name  .~ "daemon prince w/malefic talons"
 

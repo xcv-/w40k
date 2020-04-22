@@ -14,7 +14,6 @@ import W40K.Core.Prob
 import W40K.Core.Chart (AnalysisConfig(..), AnalysisConfigGroup(..), AnalysisOrder(..), ProbPlotType(..), AnalysisFn(..))
 import qualified W40K.Core.Chart.R as R
 import W40K.Core.Mechanics
-import W40K.Core.Psychic
 
 import W40K.Data.Common
 import qualified W40K.Data.AdMech          as AdMech
@@ -54,41 +53,41 @@ main = do
 
 stormbolters5 = eraseTurn emptyTurn
   & turnName .~ "5 rapid-fire stormbolters (psybolt)"
-  & turnShooting .~ do
-      with (GK.psyboltAmmo . rapidFiring) $ GK.terminatorSquad 5 GK.halberd
+  & turnShooting_ .~ do
+      with [GK.psyboltAmmo, rapidFiring] $ GK.terminatorSquad 5 GK.halberd
 
 stormbolters10 = eraseTurn emptyTurn
   & turnName .~ "10 rapid-fire stormbolters (psybolt)"
-  & turnShooting .~ do
-      with (GK.psyboltAmmo . rapidFiring) $ GK.terminatorSquad 10 GK.halberd
+  & turnShooting_ .~ do
+      with [GK.psyboltAmmo, rapidFiring] $ GK.terminatorSquad 10 GK.halberd
 
 psilencers = eraseTurn emptyTurn
   & turnName .~ " psilencer purgators"
-  & turnShooting .~ do
-      with id $ GK.purgatorSquad GK.psilencer
+  & turnShooting_ .~ do
+      with [] $ GK.purgatorSquad GK.psilencer
 
 psycannons = eraseTurn emptyTurn
   & turnName .~ " psycannon purgators"
-  & turnShooting .~ do
-      with id $ GK.purgatorSquad GK.psycannon
+  & turnShooting_ .~ do
+      with [] $ GK.purgatorSquad GK.psycannon
 
 gmndk = eraseTurn emptyTurn
   & turnName .~ "gmndk"
-  & turnShooting .~ do
+  & turnShooting_ .~ do
       [GK.gmndkWith [GK.gatlingPsilencer, GK.heavyPsycannon] GK.greatsword]
 
 
-onslaughtPsilencers = psilencers   & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
-onslaughtPsycannons = psycannons   & turnShooting %~ with GK.psyOnslaught & turnName <>~ " (onslaught)"
+onslaughtPsilencers = psilencers & turnShooting_ %~ with [GK.psyOnslaught] & turnName <>~ " (onslaught)"
+onslaughtPsycannons = psycannons & turnShooting_ %~ with [GK.psyOnslaught] & turnName <>~ " (onslaught)"
 
 
 baseList = [stormbolters5, stormbolters10, psilencers, onslaughtPsilencers, psycannons, onslaughtPsycannons]
-inCover m = m & model_save -~ 1 & model_name <>~ " (cover)"
+inCover = stack [model_save -~ 1, model_name <>~ " (cover)"]
 
-invocationList              = map (turnShooting %~ with GK.invocationOfFocus) baseList
-tideList                    = map (turnShooting %~ with GK.tideOfConvergence) baseList
-invocationTideList          = map (turnShooting %~ with GK.invocationOfFocus) tideList
-invocationOnslaughtTideList = map (turnShooting %~ with GK.psyOnslaught)      invocationTideList
+invocationList              = map (turnAttacks_  %~ with [GK.invocationOfFocus]) baseList
+tideList                    = map (turnShooting_ %~ with [GK.tideOfConvergence]) baseList
+invocationTideList          = map (turnAttacks_  %~ with [GK.invocationOfFocus]) tideList
+invocationOnslaughtTideList = map (turnShooting_ %~ with [GK.psyOnslaught])      invocationTideList
 
 
 allCombinations bdtb fn targets =
@@ -116,24 +115,24 @@ allCombinations bdtb fn targets =
         [ AnalysisConfig ByTarget WoundingSummary
             (f
               [ gmndk
-                  & turnShooting %~ with moving
+                  & turnShooting_ %~ with [moving]
                   & turnName %~ ("moving " <>)
               , gmndk
 
               , gmndk
-                  & turnShooting %~ with moving
+                  & turnShooting_ %~ with [moving]
                   & turnName %~ ("moving " <>)
-                  & turnShooting %~ with GK.psyOnslaught
+                  & turnShooting_ %~ with [GK.psyOnslaught]
                   & turnName <>~ " (onslaught)"
               , gmndk
-                  & turnShooting %~ with GK.psyOnslaught
+                  & turnShooting_ %~ with [GK.psyOnslaught]
                   & turnName <>~ " (onslaught)"
               ])
             targets
         ]
     ]
   where
-    f | bdtb      = map (turnAttacks %~ with GK.bringDownTheBeast)
+    f | bdtb      = map (turnAttacks_ %~ with [GK.bringDownTheBeast])
       | otherwise = id
 
 

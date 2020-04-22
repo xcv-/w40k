@@ -7,6 +7,8 @@ import Control.Lens
 
 import W40K.Core.ConstrMonad
 import W40K.Core.Mechanics
+import W40K.Core.Util (filteredOn)
+
 import W40K.Data.Common
 
 
@@ -21,7 +23,7 @@ primeHermeticonAura = noAura & aura_cc.mod_rrtohit .~ RerollFailed
 cawlAura :: Aura
 cawlAura = noAura & aura_rng.mod_rrtohit .~ RerollAll
 
-daedalosusTarget :: Modifier
+daedalosusTarget :: Effect
 daedalosusTarget = em_model %~ \m -> m
   & model_rng_mods.mod_tohit +~ 1
   & model_name <>~ " (DrD)"
@@ -29,83 +31,78 @@ daedalosusTarget = em_model %~ \m -> m
 
 -- CANTICLES
 
-chantOfTheRemorselessFist :: Modifier
-chantOfTheRemorselessFist = em_model.model_cc_mods.mod_rrtohit .~ RerollOnes
+chantOfTheRemorselessFist :: ModelEffect
+chantOfTheRemorselessFist = as_model.model_cc_mods.mod_rrtohit .~ RerollOnes
 
-invocationOfMachineMight :: Modifier
-invocationOfMachineMight = em_model.model_str +~ 1
+invocationOfMachineMight :: ModelEffect
+invocationOfMachineMight = as_model.model_str +~ 1
 
-benedictionOfTheOmnissiah :: Modifier
-benedictionOfTheOmnissiah = em_model.model_rng_mods.mod_rrtohit .~ RerollOnes
+benedictionOfTheOmnissiah :: ModelEffect
+benedictionOfTheOmnissiah = as_model.model_rng_mods.mod_rrtohit .~ RerollOnes
 
 
 -- DOGMAS
 
-ryzaDogma :: Modifier
-ryzaDogma = em_model.model_cc_mods.mod_rrtowound .~ RerollOnes
+ryzaDogma :: ModelEffect
+ryzaDogma = as_model.model_cc_mods.mod_rrtowound .~ RerollOnes
 
 
 -- STRATAGEMS & ABILITIES
 
-dataTether :: Modifier
-dataTether = em_model.model_name <>~ " (data-tether)"
+dataTether :: ModelEffect
+dataTether = as_model.model_name <>~ " (data-tether)"
 
-protectorDoctrinaImperative :: Modifier
-protectorDoctrinaImperative em =
+protectorDoctrinaImperative :: ModelEffect
+protectorDoctrinaImperative m =
     if "data-tether" `isInfixOf` name || "d-t" `isInfixOf` name then
-      em & em_model.model_rng_mods.mod_tohit +~ 2
+      m & as_model.model_rng_mods.mod_tohit +~ 2
     else
-      em & em_model.model_rng_mods.mod_tohit +~ 1
+      m & as_model.model_rng_mods.mod_tohit +~ 1
   where
-    name = em^.em_model.model_name
+    name = m^.as_model.model_name
 
-conquerorDoctrinaImperative :: Modifier
-conquerorDoctrinaImperative em =
+conquerorDoctrinaImperative :: ModelEffect
+conquerorDoctrinaImperative m =
     if "data-tether" `isInfixOf` name || "d-t" `isInfixOf` name then
-      em & em_model.model_cc_mods.mod_tohit +~ 2
+      m & as_model.model_cc_mods.mod_tohit +~ 2
     else
-      em & em_model.model_cc_mods.mod_tohit +~ 1
+      m & as_model.model_cc_mods.mod_tohit +~ 1
   where
-    name = em^.em_model.model_name
+    name = m^.as_model.model_name
 
-neosphericMindlock :: Modifier
-neosphericMindlock = em_model.model_rng_mods.mod_tohit +~ 1
+neosphericMindlock :: ModelEffect
+neosphericMindlock = as_model.model_rng_mods.mod_tohit +~ 1
 
-eliminationVolley :: Modifier
-eliminationVolley = em_model.model_rng_mods.mod_tohit +~ 1
+eliminationVolley :: ModelEffect
+eliminationVolley = as_model.model_rng_mods.mod_tohit +~ 1
 
-plasmaSpecialists :: Modifier
+plasmaSpecialists :: Effect
 plasmaSpecialists =
-    em_rw.mapped.rw_weapon %~ \w ->
-      if "plasma" `isInfixOf` (w^.w_name) then
-        w & w_dmg              %~ fmap (+1)
-          & w_mods.mod_towound +~ 1
-      else
-        w
+    em_rw.mapped.rw_weapon.filteredOn w_name ("plasma" `isInfixOf`) %~ stack
+        [w_dmg %~ fmap (+1), w_mods.mod_towound +~ 1]
 
-wrathOfMars :: Modifier
+wrathOfMars :: Effect
 wrathOfMars =
-    em_rw.mapped.rw_weapon.w_hooks.hook_wound %~ addHook (MinModifiedRoll 6) (WoundHookMortalWounds (return 1))
+    em_rw.mapped.rw_weapon.w_hooks.hook_wound %~
+        addHook (MinModifiedRoll 6) (WoundHookMortalWounds (return 1))
 
 
 data Protocol = Aegis | Protector | Conqueror
   deriving (Eq, Ord, Enum, Bounded, Show)
 
-withProtocol :: Protocol -> Modifier
-withProtocol proto em =
-  if "kastelan" `isInfixOf` (em^.em_model.model_name) then
-    case proto of
-      Aegis     -> em & em_model.model_mods.mod_tosave +~ 1
-      Conqueror -> em & em_model.model_att  *~ 2
-      Protector -> em & em_rw.mapped.rw_shots %~ fmap (*2)
-  else
-    em
+withProtocol :: Protocol -> Effect
+withProtocol proto =
+  filteredOn (as_model.model_name) ("kastelan" `isInfixOf`) %~
+      case proto of
+        Aegis     -> as_model.model_mods.mod_tosave +~ 1
+        Conqueror -> as_model.model_att  *~ 2
+        Protector -> em_rw.mapped.rw_shots %~ fmap (*2)
 
-radSaturation :: Model -> Model
-radSaturation = (model_tgh -~ 1) . (model_name <>~ " (rad-saturation)")
+radSaturation :: ModelEffect
+radSaturation = as_model %~ stack [model_tgh -~ 1, model_name <>~ " (rad-saturation)"]
 
-eyeOfXiLexum :: Modifier
-eyeOfXiLexum = em_model.model_mods.mod_rrtowound .~ RerollOnes
+eyeOfXiLexum :: ModelEffect
+eyeOfXiLexum = as_model.model_mods.mod_rrtowound .~ RerollOnes
 
 
 -- MODELS
@@ -425,89 +422,89 @@ taserLance = basic_ccw
 -- EQUIPPED MODELS
 
 rangerWith :: RngWeapon -> EquippedModel
-rangerWith rw = basicEquippedModel rangerModel
+rangerWith rw = equipped rangerModel
   & em_rw    .~ [rw]
   & em_name  .~ "ranger w/ " ++ (rw^.rw_name)
 
 vanguardWith :: RngWeapon -> EquippedModel
-vanguardWith rw = basicEquippedModel vanguardModel
+vanguardWith rw = equipped vanguardModel
   & em_rw    .~ [rw]
   & em_name  .~ "vanguard w/ " ++ (rw^.rw_name)
 
 plasmaKataphron :: EquippedModel
-plasmaKataphron = basicEquippedModel kataphronDestroyerModel
+plasmaKataphron = equipped kataphronDestroyerModel
   & em_rw    .~ [phosphorBlaster, plasmaCulverin]
   & em_name  .~ "plasma kataphron destroyer"
 
 plasmaKataphronOvercharge :: EquippedModel
-plasmaKataphronOvercharge = basicEquippedModel kataphronDestroyerModel
+plasmaKataphronOvercharge = equipped kataphronDestroyerModel
   & em_rw    .~ [phosphorBlaster, plasmaCulverinOvercharge]
   & em_name  .~ "plasma kataphron destroyer (overcharge)"
 
 gravKataphron_d3 :: EquippedModel
-gravKataphron_d3 = basicEquippedModel kataphronDestroyerModel
+gravKataphron_d3 = equipped kataphronDestroyerModel
   & em_rw    .~ [phosphorBlaster, heavyGravCannon_d3]
   & em_name  .~ "grav kataphron destroyer (D3 dmg)"
 
 arcKataphron :: ModelClass -> EquippedModel
-arcKataphron mc = basicEquippedModel kataphronBreacherModel
+arcKataphron mc = equipped kataphronBreacherModel
   & em_rw    .~ [phosphorBlaster, heavyArcRifle mc]
   & em_ccw   .~ arcClaw mc
   & em_name  .~ "arc kataphron breacher"
 
 torsionKataphron :: EquippedModel
-torsionKataphron = basicEquippedModel kataphronBreacherModel
+torsionKataphron = equipped kataphronBreacherModel
   & em_rw    .~ [phosphorBlaster, torsionCannon]
   & em_ccw   .~ hydraulicClaw
   & em_name  .~ "hydraulic/torsion kataphron breacher"
 
 bladesRuststalker :: EquippedModel
-bladesRuststalker = basicEquippedModel ruststalkerModel
+bladesRuststalker = equipped ruststalkerModel
   & em_ccw    .~ transonicBlades
   & em_name   .~ "ruststalker w/transonic blades"
 
 razorClawRuststalker :: [EquippedModel]
-razorClawRuststalker = basicEquippedModel ruststalkerModel
+razorClawRuststalker = equipped ruststalkerModel
   & em_ccw    .~ transonicRazor
   & em_name   .~ "ruststalker w/transonic razor+claw"
   & splitAttacks 1 chordClaw
 
 razorClawRuststalkerAlpha :: [EquippedModel]
-razorClawRuststalkerAlpha = basicEquippedModel (alpha ruststalkerModel)
+razorClawRuststalkerAlpha = equipped (alpha ruststalkerModel)
   & em_ccw    .~ transonicRazor
   & em_name   .~ "ruststalker alpha w/transonic razor+claw"
   & splitAttacks 1 chordClaw
 
 taserGoadInfiltrator :: EquippedModel
-taserGoadInfiltrator = basicEquippedModel infiltratorModel
+taserGoadInfiltrator = equipped infiltratorModel
   & em_rw     .~ [flechetteBlaster]
   & em_ccw    .~ taserGoad
   & em_name   .~ "taser goad infiltrator"
 
 powerSwordInfiltrator :: EquippedModel
-powerSwordInfiltrator = basicEquippedModel infiltratorModel
+powerSwordInfiltrator = equipped infiltratorModel
   & em_rw     .~ [stubcarbine]
   & em_ccw    .~ powerSword
   & em_name   .~ "power sword infiltrator"
 
 autocannonIronstrider :: EquippedModel
-autocannonIronstrider = basicEquippedModel ironstriderModel
+autocannonIronstrider = equipped ironstriderModel
   & em_rw    .~ [twin autocannon]
   & em_name  .~ "autocannon ironstrider ballistarius (d-t)"
 
 lascannonIronstrider :: EquippedModel
-lascannonIronstrider = basicEquippedModel ironstriderModel
+lascannonIronstrider = equipped ironstriderModel
   & em_rw    .~ [twin lascannon]
   & em_name  .~ "lascannon ironstrider ballistarius (d-t)"
 
 taserLanceDragoon :: EquippedModel
-taserLanceDragoon = basicEquippedModel dragoonModel
+taserLanceDragoon = equipped dragoonModel
   & em_ccw   .~ taserLance
   & em_name  .~ "sydonian dragoon (taser) (d-t)"
 
 dakkabot :: Protocol -> EquippedModel
 dakkabot proto = withProtocol proto $
-    basicEquippedModel kastelanModel
+    equipped kastelanModel
       & em_rw   .~ replicate 3 heavyPhosphorBlaster
       & em_name .~ "triple phosphor kastelan"
 
@@ -516,17 +513,17 @@ dakkabots n = replicate n . dakkabot
 
 
 eradicationOnager :: Bool -> EquippedModel
-eradicationOnager short = basicEquippedModel onagerModel
+eradicationOnager short = equipped onagerModel
   & em_rw   .~ [if short then eradicationBeamerShort else eradicationBeamerLong]
   & em_name .~ "onager dunecrawler (eradication, d-t)"
 
 icarusOnager :: Bool -> EquippedModel
-icarusOnager fly = basicEquippedModel onagerModel
+icarusOnager fly = equipped onagerModel
   & em_rw   .~ icarusArray fly
   & em_name .~ "onager dunecrawler (icarus array, d-t)"
 
 neutronOnager :: EquippedModel
-neutronOnager = basicEquippedModel onagerModel
+neutronOnager = equipped onagerModel
   & em_rw   .~ [neutronLaser]
   & em_name .~ "onager dunecrawler (neutron laser, d-t)"
 
