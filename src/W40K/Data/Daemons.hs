@@ -10,20 +10,23 @@ import W40K.Data.Common
 
 -- STRATAGEMS
 
-cloudOfFlies :: Model -> Model
-cloudOfFlies m = m
-  & model_mods.mod_tobehit -~ 1
-  & model_name             <>~ " (CoF)"
+cloudOfFlies :: ModelEffect
+cloudOfFlies m = as_model %~ stack
+  [ model_mods.mod_tobehit -~ 1
+  , model_name             <>~ " (CoF)"
+  ]
 
-miasmaOfPestilence :: Model -> Model
-miasmaOfPestilence m = m
-  & model_mods.mod_tobehit -~ 1
-  & model_name             <>~ " (MoP)"
+miasmaOfPestilence :: ModelEffect
+miasmaOfPestilence = as_model %~ stack
+  [ model_mods.mod_tobehit -~ 1
+  , model_name             <>~ " (MoP)"
+  ]
 
-warpSurge :: Model -> Model
-warpSurge m = m
-  & model_inv   %~ max 4 . subtract 1
-  & model_name <>~ " (WS)"
+warpSurge :: ModelEffect
+warpSurge = as_model %~ stack
+  [ model_inv   %~ max 4 . subtract 1
+  , model_name <>~ " (WS)"
+  ]
 
 
 -- MODELS

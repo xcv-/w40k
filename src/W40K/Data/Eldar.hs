@@ -10,39 +10,43 @@ import W40K.Data.Common
 -- MODIFIERS
 
 -- stratagem
-lightningReflexes :: Model -> Model
-lightningReflexes m = m
-  & model_mods.mod_tobehit -~ 1
-  & model_name <>~ " (LFR)"
+lightningReflexes :: ModelEffect
+lightningReflexes = as_model %~ stack
+  [ model_mods.mod_tobehit -~ 1
+  , model_name <>~ " (LFR)"
+  ]
 
 -- stratagem
-prismaticBlur :: Model -> Model
-prismaticBlur m = m
-  & model_inv  .~ 3
-  & model_name <>~ " (PB)"
+prismaticBlur :: ModelEffect
+prismaticBlur = as_model %~ stack
+  [ model_inv  .~ 3
+  , model_name <>~ " (PB)"
+  ]
 
 -- power from pain
-inuredToSuffering :: Model -> Model
-inuredToSuffering = model_fnp .~ 6
+inuredToSuffering :: ModelEffect
+inuredToSuffering = as_model.model_fnp .~ 6
 
 -- haemonculus
-masterOfPain :: Model -> Model
-masterOfPain = model_tgh +~ 1
+masterOfPain :: ModelEffect
+masterOfPain = as_model.model_tgh +~ 1
 
 -- craftworld attribute
-alaitoc :: Model -> Model
-alaitoc m = m
-  & model_rng_mods.mod_tobehit -~ 1
-  & model_name <>~ " (alaitoc)"
+alaitoc :: ModelEffect
+alaitoc = as_model %~ stack
+  [ model_rng_mods.mod_tobehit -~ 1
+  , model_name <>~ " (alaitoc)"
+  ]
 
 ulthwe :: Model -> Model
-ulthwe m = m
-  & model_fnp %~ min 6
-  & model_name <>~ " (ulthwe)"
+ulthwe = as_model %~ stack
+  [ model_fnp %~ min 6
+  , model_name <>~ " (ulthwe)"
+  ]
 
 -- coven bonus
-prophetsOfFlesh :: Model -> Model
-prophetsOfFlesh = model_inv %~ min 4
+prophetsOfFlesh :: ModelEffect
+prophetsOfFlesh = as_model.model_inv %~ min 4
 
 
 -- CRAFTWORLDS MODELS
